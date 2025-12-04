@@ -56,6 +56,7 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.groupNames) > 0 {
 			groupName := m.groupNames[m.selectedGroup]
 			m.testing = true
+			m.testFailures = []string{} // 清空之前的失败记录
 			return m, testGroup(m.client, groupName, m.testURL, m.timeout)
 		}
 	}
@@ -190,6 +191,19 @@ func (m Model) renderNodesPage() string {
 		Foreground(lipgloss.Color("#888")).
 		Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
 
+	// 测速失败信息
+	var failureInfo string
+	if len(m.testFailures) > 0 {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF0000"))
+		
+		failureLines := []string{errorStyle.Render("\n⚠ 测速失败的节点:")}
+		for _, failure := range m.testFailures {
+			failureLines = append(failureLines, "  "+failure)
+		}
+		failureInfo = strings.Join(failureLines, "\n")
+	}
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		headerStyle.Width(m.width-4).Render("策略组"),
@@ -197,6 +211,7 @@ func (m Model) renderNodesPage() string {
 		"",
 		headerStyle.Width(m.width-4).Render("节点列表"),
 		proxyList,
+		failureInfo,
 		"",
 		helpText,
 	)

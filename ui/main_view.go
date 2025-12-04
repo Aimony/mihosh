@@ -42,6 +42,7 @@ type Model struct {
 	currentPage     PageType
 	editMode        bool
 	editValue       string
+	testFailures    []string // 记录测速失败的节点
 }
 
 // 消息类型
@@ -53,6 +54,7 @@ type (
 	testDoneMsg     struct {
 		name  string
 		delay int
+		err   error  // 添加错误信息
 	}
 	configSavedMsg struct{}
 )
@@ -229,11 +231,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case groupsMsg:
+		// 保存当前选中的策略组名称
+		var selectedGroupName string
+		if len(m.groupNames) > 0 && m.selectedGroup < len(m.groupNames) {
+			selectedGroupName = m.groupNames[m.selectedGroup]
+		}
+
 		m.groups = msg
 		m.groupNames = make([]string, 0, len(msg))
 		for name := range msg {
 			m.groupNames = append(m.groupNames, name)
 		}
+
+		// 恢复之前选中的策略组
+		if selectedGroupName != "" {
+			for i, name := range m.groupNames {
+				if name == selectedGroupName {
+					m.selectedGroup = i
+					break
+				}
+			}
+		}
+
 		m.updateCurrentProxies()
 
 	case proxiesMsg:
@@ -244,6 +263,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case testDoneMsg:
 		m.testing = false
+		
+		// 记录测速失败的节点
+		if msg.err != nil {
+			failureInfo := fmt.Sprintf("%s: %s", msg.name, msg.err.Error())
+			m.testFailures = append(m.testFailures, failureInfo)
+		}
+		
 		return m, fetchProxies(m.client)
 
 	case configSavedMsg:
@@ -471,9 +497,9 @@ func testProxy(client *api.Client, name, testURL string, timeout int) tea.Cmd {
 	return func() tea.Msg {
 		delay, err := client.TestProxyDelay(name, testURL, timeout)
 		if err != nil {
-			return errMsg(err)
+			return testDoneMsg{name: name, delay: 0, err: err}
 		}
-		return testDoneMsg{name: name, delay: delay}
+		return testDoneMsg{name: name, delay: delay, err: nil}
 	}
 }
 
