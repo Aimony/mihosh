@@ -69,6 +69,36 @@ var configShowCmd = &cobra.Command{
 	},
 }
 
+var configSetCmd = &cobra.Command{
+	Use:   "set <key> <value>",
+	Short: "设置配置项",
+	Long: `设置配置项
+
+可用的配置项:
+  api-address  - Mihomo API 地址 (例如: http://127.0.0.1:9090)
+  secret       - API 密钥
+  test-url     - 测速 URL (例如: http://www.gstatic.com/generate_204)
+  timeout      - 超时时间，单位毫秒 (例如: 5000)
+
+示例:
+  mihomo config set api-address http://127.0.0.1:9090
+  mihomo config set secret your-secret-here
+  mihomo config set test-url http://www.google.com/generate_204
+  mihomo config set timeout 3000`,
+	Args: cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		key := args[0]
+		value := args[1]
+
+		if err := config.Set(key, value); err != nil {
+			fmt.Fprintf(os.Stderr, "设置配置失败: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("✓ 已设置 %s = %s\n", key, value)
+	},
+}
+
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "列出所有策略组和节点",
@@ -215,6 +245,7 @@ var connectionsCmd = &cobra.Command{
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configSetCmd)
 	
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(listCmd)

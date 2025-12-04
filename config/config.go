@@ -121,3 +121,30 @@ func Init() error {
 	fmt.Println("✓ 配置初始化完成!")
 	return nil
 }
+
+// Set 设置单个配置项
+func Set(key, value string) error {
+	cfg, err := Load()
+	if err != nil {
+		return err
+	}
+
+	switch key {
+	case "api_address", "api-address":
+		cfg.APIAddress = value
+	case "secret":
+		cfg.Secret = value
+	case "test_url", "test-url":
+		cfg.TestURL = value
+	case "timeout":
+		var timeout int
+		if _, err := fmt.Sscanf(value, "%d", &timeout); err != nil {
+			return fmt.Errorf("timeout 必须是数字: %v", err)
+		}
+		cfg.Timeout = timeout
+	default:
+		return fmt.Errorf("未知的配置项: %s (可用: api_address, secret, test_url, timeout)", key)
+	}
+
+	return Save(cfg)
+}
