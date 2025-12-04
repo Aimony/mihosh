@@ -79,11 +79,24 @@ func (m Model) renderNodesPage() string {
 	activeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#1E90FF"))
 
-	// 策略组列表
+	// 策略组列表 - 表格对齐
 	var groupList string
 	if len(m.groupNames) == 0 {
 		groupList = "  正在加载..."
 	} else {
+		// 计算最大列宽
+		maxNameLen := 0
+		maxTypeLen := 0
+		for _, name := range m.groupNames {
+			if len(name) > maxNameLen {
+				maxNameLen = len(name)
+			}
+			group := m.groups[name]
+			if len(group.Type) > maxTypeLen {
+				maxTypeLen = len(group.Type)
+			}
+		}
+
 		var lines []string
 		for i, name := range m.groupNames {
 			group := m.groups[name]
@@ -92,7 +105,10 @@ func (m Model) renderNodesPage() string {
 				prefix = "► "
 			}
 
-			line := fmt.Sprintf("%s%s (%s) → %s", prefix, name, group.Type, group.Now)
+			// 表格对齐: 名称 | 类型 | 当前节点
+			namePadded := fmt.Sprintf("%-*s", maxNameLen, name)
+			typePadded := fmt.Sprintf("%-*s", maxTypeLen, group.Type)
+			line := fmt.Sprintf("%s%s │ %s │ %s", prefix, namePadded, typePadded, group.Now)
 
 			if i == m.selectedGroup {
 				line = selectedStyle.Render(line)
@@ -105,7 +121,7 @@ func (m Model) renderNodesPage() string {
 		groupList = strings.Join(lines, "\n")
 	}
 
-	// 节点列表
+	// 节点列表 - 表格对齐
 	var proxyList string
 	if len(m.currentProxies) == 0 {
 		proxyList = "  无可用节点"
@@ -118,34 +134,45 @@ func (m Model) renderNodesPage() string {
 			}
 		}
 
+		// 计算最大名称长度
+		maxNameLen := 0
+		for _, name := range m.currentProxies {
+			if len(name) > maxNameLen {
+				maxNameLen = len(name)
+			}
+		}
+
 		var lines []string
 		for i, name := range m.currentProxies {
 			proxy, exists := m.proxies[name]
 
 			prefix := "  "
-			suffix := ""
-
 			if i == m.selectedProxy {
 				prefix = "► "
 			}
 
-			if name == currentNode {
-				suffix = " ✓"
-			}
+			// 节点名称对齐
+			namePadded := fmt.Sprintf("%-*s", maxNameLen, name)
 
-			// 获取延迟信息
-			delay := ""
+			// 延迟信息
+			delayText := "       "
 			if exists && len(proxy.History) > 0 {
 				lastDelay := proxy.History[len(proxy.History)-1].Delay
 				if lastDelay > 0 {
 					delayColor := m.getDelayColor(lastDelay)
-					delay = lipgloss.NewStyle().
+					delayText = lipgloss.NewStyle().
 						Foreground(delayColor).
-						Render(fmt.Sprintf(" (%dms)", lastDelay))
+						Render(fmt.Sprintf(" %4dms", lastDelay))
 				}
 			}
 
-			line := fmt.Sprintf("%s%s%s%s", prefix, name, delay, suffix)
+			// 状态标记
+			status := "  "
+			if name == currentNode {
+				status = "✓ "
+			}
+
+			line := fmt.Sprintf("%s%s │%s │ %s", prefix, namePadded, delayText, status)
 
 			if i == m.selectedProxy {
 				line = selectedStyle.Render(line)
@@ -161,7 +188,7 @@ func (m Model) renderNodesPage() string {
 	// 操作提示
 	helpText := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888")).
-		Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测")
+		Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,

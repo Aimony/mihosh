@@ -19,9 +19,31 @@ var rootCmd = &cobra.Command{
 		// 默认行为：启动TUI界面
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			fmt.Println("请先运行 'mihomo config init' 初始化配置")
-			os.Exit(1)
+			// 友好的首次使用引导
+			fmt.Println("┌─────────────────────────────────────────┐")
+			fmt.Println("│     欢迎使用 Mihomo CLI! 🚀             │")
+			fmt.Println("└─────────────────────────────────────────┘")
+			fmt.Println()
+			fmt.Println("检测到配置文件不存在，正在引导您完成初始化...")
+			fmt.Println()
+			
+			if err := config.Init(); err != nil {
+				fmt.Fprintf(os.Stderr, "配置初始化失败: %v\n", err)
+				fmt.Println()
+				fmt.Println("💡 提示：您也可以手动运行 'mihomo config init' 初始化配置")
+				os.Exit(1)
+			}
+			
+			fmt.Println()
+			fmt.Println("✓ 配置完成！正在启动...")
+			fmt.Println()
+			
+			// 重新加载配置
+			cfg, err = config.Load()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
 		client := api.NewClient(cfg)

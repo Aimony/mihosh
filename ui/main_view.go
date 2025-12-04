@@ -366,7 +366,26 @@ func (m Model) renderStatusBar() string {
 
 	var status string
 	if m.err != nil {
-		status = errorStyle.Render(fmt.Sprintf("错误: %v", m.err))
+		// 优化错误信息显示
+		errText := m.err.Error()
+		
+		// 截断过长的错误信息
+		maxErrLen := m.width - 20
+		if len(errText) > maxErrLen {
+			errText = errText[:maxErrLen] + "..."
+		}
+		
+		// 提供更友好的错误提示
+		friendlyErr := errText
+		if strings.Contains(errText, "context dead") {
+			friendlyErr = "测速超时，节点可能不可用"
+		} else if strings.Contains(errText, "connection refused") {
+			friendlyErr = "无法连接mihomo API，请检查mihomo是否运行"
+		} else if strings.Contains(errText, "timeout") {
+			friendlyErr = "请求超时，请检查网络或增加超时时间"
+		}
+		
+		status = errorStyle.Render(fmt.Sprintf("❌ %s", friendlyErr))
 	} else if m.testing {
 		status = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFA500")).
@@ -377,7 +396,7 @@ func (m Model) renderStatusBar() string {
 	}
 
 	// 按 ? 显示帮助
-	helpHint := statusStyle.Render(" | 按Tab切换页面 | 按数字键快速跳转 | 按q退出")
+	helpHint := statusStyle.Render(" | 按Tab切换页面 | 按数字键快速跳转 | 按r刷新 | 按q退出")
 
 	divider := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666")).
