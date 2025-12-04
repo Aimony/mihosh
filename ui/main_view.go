@@ -489,7 +489,8 @@ func selectProxy(client *api.Client, group, proxy string) tea.Cmd {
 		if err := client.SelectProxy(group, proxy); err != nil {
 			return errMsg(err)
 		}
-		return fetchProxies(client)()
+		// 需要同时刷新groups和proxies,确保✓标记更新
+		return tea.Batch(fetchGroups(client), fetchProxies(client))()
 	}
 }
 
@@ -509,6 +510,17 @@ func testGroup(client *api.Client, group, testURL string, timeout int) tea.Cmd {
 			return errMsg(err)
 		}
 		return testDoneMsg{}
+	}
+}
+
+// testAllProxies 逐个测速所有节点
+func testAllProxies(client *api.Client, proxies []string, testURL string, timeout int) tea.Cmd {
+	return func() tea.Msg {
+		var cmds []tea.Cmd
+		for _, proxyName := range proxies {
+			cmds = append(cmds, testProxy(client, proxyName, testURL, timeout))
+		}
+		return tea.Batch(cmds...)()
 	}
 }
 

@@ -53,11 +53,11 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.TestAll):
-		if len(m.groupNames) > 0 {
-			groupName := m.groupNames[m.selectedGroup]
+		if len(m.groupNames) > 0 && len(m.currentProxies) > 0 {
 			m.testing = true
 			m.testFailures = []string{} // 清空之前的失败记录
-			return m, testGroup(m.client, groupName, m.testURL, m.timeout)
+			// 逐个测速当前组的所有节点
+			return m, testAllProxies(m.client, m.currentProxies, m.testURL, m.timeout)
 		}
 	}
 
@@ -80,23 +80,35 @@ func (m Model) renderNodesPage() string {
 	activeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#1E90FF"))
 
-	// 策略组列表 - 表格对齐
+	// 策略组列表 - 优化表格对齐
 	var groupList string
 	if len(m.groupNames) == 0 {
 		groupList = "  正在加载..."
 	} else {
-		// 计算最大列宽
+		// 计算最大列宽,向上取整到8的倍数以实现制表符效果
 		maxNameLen := 0
 		maxTypeLen := 0
 		for _, name := range m.groupNames {
-			if len(name) > maxNameLen {
-				maxNameLen = len(name)
+			nameLen := len(name)
+			// 考虑中文字符占用更多空间
+			for _, r := range name {
+				if r > 127 {
+					nameLen++
+				}
 			}
+			if nameLen > maxNameLen {
+				maxNameLen = nameLen
+			}
+			
 			group := m.groups[name]
 			if len(group.Type) > maxTypeLen {
 				maxTypeLen = len(group.Type)
 			}
 		}
+		
+		// 向上取整到8的倍数
+		maxNameLen = ((maxNameLen + 7) / 8) * 8
+		maxTypeLen = ((maxTypeLen + 7) / 8) * 8
 
 		var lines []string
 		for i, name := range m.groupNames {
@@ -106,10 +118,18 @@ func (m Model) renderNodesPage() string {
 				prefix = "► "
 			}
 
-			// 表格对齐: 名称 | 类型 | 当前节点
-			namePadded := fmt.Sprintf("%-*s", maxNameLen, name)
-			typePadded := fmt.Sprintf("%-*s", maxTypeLen, group.Type)
-			line := fmt.Sprintf("%s%s │ %s │ %s", prefix, namePadded, typePadded, group.Now)
+			// 计算实际占用宽度
+			actualLen := len(name)
+			for _, r := range name {
+				if r > 127 {
+					actualLen++
+				}
+			}
+			
+			// 表格对齐
+			namePadding := strings.Repeat(" ", maxNameLen-actualLen)
+			typePadding := strings.Repeat(" ", maxTypeLen-len(group.Type))
+			line := fmt.Sprintf("%s%s%s │ %s%s │ %s", prefix, name, namePadding, group.Type, typePadding, group.Now)
 
 			if i == m.selectedGroup {
 				line = selectedStyle.Render(line)
@@ -135,13 +155,22 @@ func (m Model) renderNodesPage() string {
 			}
 		}
 
-		// 计算最大名称长度
+		// 计算最大名称长度,考虑中文字符
 		maxNameLen := 0
 		for _, name := range m.currentProxies {
-			if len(name) > maxNameLen {
-				maxNameLen = len(name)
+			nameLen := len(name)
+			for _, r := range name {
+				if r > 127 {
+					nameLen++
+				}
+			}
+			if nameLen > maxNameLen {
+				maxNameLen = nameLen
 			}
 		}
+		
+		// 向上取整到8的倍数
+		maxNameLen = ((maxNameLen + 7) / 8) * 8
 
 		var lines []string
 		for i, name := range m.currentProxies {
@@ -152,28 +181,36 @@ func (m Model) renderNodesPage() string {
 				prefix = "► "
 			}
 
+			// 计算实际占用宽度
+			actualLen := len(name)
+			for _, r := range name {
+				if r > 127 {
+					actualLen++
+				}
+			}
+			
 			// 节点名称对齐
-			namePadded := fmt.Sprintf("%-*s", maxNameLen, name)
+			namePadding := strings.Repeat(" ", maxNameLen-actualLen)
 
-			// 延迟信息
-			delayText := "       "
+			// 延迟信息 - 固定宽度
+			delayText := "      "
 			if exists && len(proxy.History) > 0 {
 				lastDelay := proxy.History[len(proxy.History)-1].Delay
 				if lastDelay > 0 {
 					delayColor := m.getDelayColor(lastDelay)
 					delayText = lipgloss.NewStyle().
 						Foreground(delayColor).
-						Render(fmt.Sprintf(" %4dms", lastDelay))
+						Render(fmt.Sprintf("%4dms", lastDelay))
 				}
 			}
 
 			// 状态标记
-			status := "  "
+			status := " "
 			if name == currentNode {
-				status = "✓ "
+				status = "✓"
 			}
 
-			line := fmt.Sprintf("%s%s │%s │ %s", prefix, namePadded, delayText, status)
+			line := fmt.Sprintf("%s%s%s │ %s │ %s", prefix, name, namePadding, delayText, status)
 
 			if i == m.selectedProxy {
 				line = selectedStyle.Render(line)
