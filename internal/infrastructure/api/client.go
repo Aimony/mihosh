@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aimony/mihomo-cli/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/infrastructure/config"
 )
 
 // Client mihomo API 客户端

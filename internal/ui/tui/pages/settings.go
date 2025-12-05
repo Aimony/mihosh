@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aimony/mihomo-cli/internal/infrastructure/config"
-	"github.com/aimony/mihomo-cli/pkg/utils"
+	"github.com/aimony/mihosh/internal/infrastructure/config"
+	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 )
 

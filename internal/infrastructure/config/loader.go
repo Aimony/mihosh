@@ -13,7 +13,7 @@ func GetConfigDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	configDir := filepath.Join(home, ".mihomo-cli")
+	configDir := filepath.Join(home, ".mihosh")
 	return configDir, nil
 }
 

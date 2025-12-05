@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aimony/mihomo-cli/cmd"
+	"github.com/aimony/mihosh/cmd"
 )
 
 func main() {

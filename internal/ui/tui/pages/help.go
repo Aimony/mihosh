@@ -23,7 +23,7 @@ func RenderHelpPage() string {
 		Foreground(lipgloss.Color("#CCCCCC"))
 
 	helpContent := []string{
-		titleStyle.Render("Mihomo CLI 使用帮助"),
+		titleStyle.Render("Mihosh 使用帮助"),
 		"",
 		"",
 		sectionStyle.Render("全局快捷键:"),

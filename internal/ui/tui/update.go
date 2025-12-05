@@ -3,9 +3,9 @@ package tui
 import (
 	"fmt"
 
-	"github.com/aimony/mihomo-cli/internal/ui/tui/components"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Init 初始化

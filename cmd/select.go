@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aimony/mihomo-cli/internal/app/service"
-	"github.com/aimony/mihomo-cli/internal/infrastructure/api"
-	"github.com/aimony/mihomo-cli/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/app/service"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
+	"github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/spf13/cobra"
 )
 

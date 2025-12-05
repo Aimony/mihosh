@@ -3,7 +3,7 @@ package service
 import (
 	"fmt"
 
-	"github.com/aimony/mihomo-cli/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/infrastructure/config"
 )
 
 // ConfigService 配置管理服务
@@ -26,7 +26,7 @@ func (s *ConfigService) SaveConfig(cfg *config.Config) error {
 
 // InitConfig 初始化配置（交互式）
 func (s *ConfigService) InitConfig() error {
-	fmt.Println("欢迎使用 Mihomo CLI!")
+	fmt.Println("欢迎使用 Mihosh!")
 	fmt.Println("首次使用，需要进行配置初始化")
 	fmt.Println()
 

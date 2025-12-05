@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/aimony/mihomo-cli/internal/ui/tui/pages"
+	"github.com/aimony/mihosh/internal/ui/tui/pages"
 )
 
 // renderNodesPage 渲染节点管理页面

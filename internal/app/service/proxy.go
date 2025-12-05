@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/aimony/mihomo-cli/internal/domain/model"
-	"github.com/aimony/mihomo-cli/internal/infrastructure/api"
+	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
 )
 
 // ProxyService 代理管理服务

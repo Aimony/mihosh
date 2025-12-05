@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/aimony/mihomo-cli/internal/domain/model"
+	"github.com/aimony/mihosh/internal/domain/model"
 )
 
 // GetProxies 获取所有代理信息

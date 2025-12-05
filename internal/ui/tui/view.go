@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/aimony/mihomo-cli/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/lipgloss"
 )
 

@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"github.com/aimony/mihomo-cli/internal/ui/styles"
+	"github.com/aimony/mihosh/internal/ui/styles"
 	"github.com/charmbracelet/lipgloss"
 )
 

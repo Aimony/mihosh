@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/aimony/mihomo-cli/internal/infrastructure/api"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

@@ -1,11 +1,11 @@
 package tui
 
 import (
-	"github.com/aimony/mihomo-cli/internal/app/service"
-	"github.com/aimony/mihomo-cli/internal/domain/model"
-	"github.com/aimony/mihomo-cli/internal/infrastructure/api"
-	"github.com/aimony/mihomo-cli/internal/infrastructure/config"
-	"github.com/aimony/mihomo-cli/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/app/service"
+	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
+	"github.com/aimony/mihosh/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/bubbles/key"
 )
 
@@ -38,11 +38,11 @@ type Model struct {
 
 // 消息类型
 type (
-	groupsMsg       map[string]model.Group
-	proxiesMsg      map[string]model.Proxy
-	connectionsMsg  *model.ConnectionsResponse
-	errMsg          error
-	testDoneMsg     struct {
+	groupsMsg      map[string]model.Group
+	proxiesMsg     map[string]model.Proxy
+	connectionsMsg *model.ConnectionsResponse
+	errMsg         error
+	testDoneMsg    struct {
 		name  string
 		delay int
 		err   error
@@ -52,23 +52,23 @@ type (
 
 // 快捷键定义
 type keyMap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Left        key.Binding
-	Right       key.Binding
-	Enter       key.Binding
-	Test        key.Binding
-	TestAll     key.Binding
-	Quit        key.Binding
-	Refresh     key.Binding
-	NextPage    key.Binding
-	PrevPage    key.Binding
-	Page1       key.Binding
-	Page2       key.Binding
-	Page3       key.Binding
-	Page4       key.Binding
-	Escape      key.Binding
-	Save        key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Left     key.Binding
+	Right    key.Binding
+	Enter    key.Binding
+	Test     key.Binding
+	TestAll  key.Binding
+	Quit     key.Binding
+	Refresh  key.Binding
+	NextPage key.Binding
+	PrevPage key.Binding
+	Page1    key.Binding
+	Page2    key.Binding
+	Page3    key.Binding
+	Page4    key.Binding
+	Escape   key.Binding
+	Save     key.Binding
 }
 
 var keys = keyMap{
@@ -145,7 +145,7 @@ var keys = keyMap{
 // NewModel 创建新的 TUI 模型
 func NewModel(client *api.Client, testURL string, timeout int) Model {
 	cfg, _ := config.Load()
-	
+
 	// 创建服务实例
 	proxySvc := service.NewProxyService(client, testURL, timeout)
 	configSvc := service.NewConfigService()

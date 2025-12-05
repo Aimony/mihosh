@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aimony/mihomo-cli/internal/domain/model"
+	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/aimony/mihomo-cli/pkg/utils"
 )
 
 // NodesPageState 节点页面状态（由 Model 传入）

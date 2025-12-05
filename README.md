@@ -1,6 +1,6 @@
-# Mihomo CLI
+# Mihosh
 
-一个功能完整的 mihomo 终端命令行工具，支持在终端直接操作 mihomo 的核心功能，包括节点切换、测速等，避免频繁切换到 Web UI。
+一个功能完整的 mihomo 终端管理工具，支持在终端直接操作 mihomo 的核心功能，包括节点切换、测速等，避免频繁切换到 Web UI。
 
 ## 功能特性
 
@@ -17,8 +17,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/aimony/mihomo-cli.git
-cd mihomo-cli
+git clone https://github.com/aimony/mihosh.git
+cd mihosh
 
 # 编译
 go build -o mihomo.exe
@@ -46,7 +46,7 @@ mihomo config init
 - API 密钥（如果 mihomo 配置了 secret）
 - 测速 URL（默认：`http://www.gstatic.com/generate_204`）
 
-配置文件保存在 `~/.mihomo-cli/config.yaml`
+配置文件保存在 `~/.mihosh/config.yaml`
 
 ### 2. 启动交互界面
 
@@ -127,7 +127,7 @@ mihomo config init
 
 ## 配置文件
 
-配置文件位于 `~/.mihomo-cli/config.yaml`：
+配置文件位于 `~/.mihosh/config.yaml`：
 
 ```yaml
 api_address: http://127.0.0.1:9090

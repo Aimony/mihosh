@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"github.com/aimony/mihomo-cli/internal/ui/tui/pages"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/aimony/mihosh/internal/ui/tui/pages"
 	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // updateNodesPage 更新节点页面
