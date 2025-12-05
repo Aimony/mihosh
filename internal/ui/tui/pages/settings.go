@@ -18,6 +18,7 @@ type SettingsPageState struct {
 	SelectedSetting int
 	EditMode        bool
 	EditValue       string
+	EditCursor      int
 }
 
 // GetSettingValue 获取配置值
@@ -74,7 +75,16 @@ func RenderSettingsPage(state SettingsPageState) string {
 
 		// 如果正在编辑此项
 		if state.EditMode && i == state.SelectedSetting {
-			value = editStyle.Render(state.EditValue + "▋")
+			// 在光标位置插入光标符号
+			cursorPos := state.EditCursor
+			if cursorPos < 0 {
+				cursorPos = 0
+			}
+			if cursorPos > len(state.EditValue) {
+				cursorPos = len(state.EditValue)
+			}
+			displayValue := state.EditValue[:cursorPos] + "▋" + state.EditValue[cursorPos:]
+			value = editStyle.Render(displayValue)
 		}
 
 		line := fmt.Sprintf("%s%s: %s", prefix, label, value)

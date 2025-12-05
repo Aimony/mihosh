@@ -89,6 +89,7 @@ func (m Model) updateSettingsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// 进入编辑模式
 		m.editMode = true
 		m.editValue = pages.GetSettingValue(m.config, m.selectedSetting)
+		m.editCursor = len(m.editValue) // 光标初始化到末尾
 		return m, nil
 	}
 
@@ -101,6 +102,7 @@ func (m Model) handleEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Escape):
 		m.editMode = false
 		m.editValue = ""
+		m.editCursor = 0
 		return m, nil
 
 	case key.Matches(msg, keys.Enter):
@@ -114,18 +116,51 @@ func (m Model) handleEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.config = cfg
 			m.editMode = false
 			m.editValue = ""
+			m.editCursor = 0
 		}
 		return m, nil
 
-	case msg.String() == "backspace":
-		if len(m.editValue) > 0 {
-			m.editValue = m.editValue[:len(m.editValue)-1]
+	case key.Matches(msg, keys.Left):
+		// 光标左移
+		if m.editCursor > 0 {
+			m.editCursor--
+		}
+
+	case key.Matches(msg, keys.Right):
+		// 光标右移
+		if m.editCursor < len(m.editValue) {
+			m.editCursor++
+		}
+
+	case key.Matches(msg, keys.Home):
+		// 光标移到开头
+		m.editCursor = 0
+
+	case key.Matches(msg, keys.End):
+		// 光标移到末尾
+		m.editCursor = len(m.editValue)
+
+	case key.Matches(msg, keys.Backspace):
+		// 删除光标前一个字符
+		if m.editCursor > 0 {
+			m.editValue = m.editValue[:m.editCursor-1] + m.editValue[m.editCursor:]
+			m.editCursor--
+		}
+
+	case key.Matches(msg, keys.Delete):
+		// 删除光标后一个字符
+		if m.editCursor < len(m.editValue) {
+			m.editValue = m.editValue[:m.editCursor] + m.editValue[m.editCursor+1:]
 		}
 
 	default:
-		// 添加字符到编辑值
-		if len(msg.String()) == 1 {
-			m.editValue += msg.String()
+		// 处理字符输入和粘贴
+		input := msg.String()
+		// 过滤掉控制字符，但允许多字符粘贴
+		if len(input) > 0 && (len(input) > 1 || (input[0] >= 32 && input[0] < 127)) {
+			// 在光标位置插入
+			m.editValue = m.editValue[:m.editCursor] + input + m.editValue[m.editCursor:]
+			m.editCursor += len(input)
 		}
 	}
 

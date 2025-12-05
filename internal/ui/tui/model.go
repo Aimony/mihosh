@@ -33,6 +33,7 @@ type Model struct {
 	currentPage     components.PageType
 	editMode        bool
 	editValue       string
+	editCursor      int      // 编辑时光标位置
 	testFailures    []string // 记录测速失败的节点
 }
 
@@ -52,23 +53,27 @@ type (
 
 // 快捷键定义
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Left     key.Binding
-	Right    key.Binding
-	Enter    key.Binding
-	Test     key.Binding
-	TestAll  key.Binding
-	Quit     key.Binding
-	Refresh  key.Binding
-	NextPage key.Binding
-	PrevPage key.Binding
-	Page1    key.Binding
-	Page2    key.Binding
-	Page3    key.Binding
-	Page4    key.Binding
-	Escape   key.Binding
-	Save     key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	Left      key.Binding
+	Right     key.Binding
+	Enter     key.Binding
+	Test      key.Binding
+	TestAll   key.Binding
+	Quit      key.Binding
+	Refresh   key.Binding
+	NextPage  key.Binding
+	PrevPage  key.Binding
+	Page1     key.Binding
+	Page2     key.Binding
+	Page3     key.Binding
+	Page4     key.Binding
+	Escape    key.Binding
+	Save      key.Binding
+	Backspace key.Binding
+	Delete    key.Binding
+	Home      key.Binding
+	End       key.Binding
 }
 
 var keys = keyMap{
@@ -139,6 +144,22 @@ var keys = keyMap{
 	Save: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "保存"),
+	),
+	Backspace: key.NewBinding(
+		key.WithKeys("backspace", "ctrl+h"),
+		key.WithHelp("backspace", "删除"),
+	),
+	Delete: key.NewBinding(
+		key.WithKeys("delete"),
+		key.WithHelp("delete", "删除后字符"),
+	),
+	Home: key.NewBinding(
+		key.WithKeys("home", "ctrl+a"),
+		key.WithHelp("home", "行首"),
+	),
+	End: key.NewBinding(
+		key.WithKeys("end", "ctrl+e"),
+		key.WithHelp("end", "行尾"),
 	),
 }
 

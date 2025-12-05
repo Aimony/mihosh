@@ -36,6 +36,7 @@ func (m Model) renderSettingsPage() string {
 		SelectedSetting: m.selectedSetting,
 		EditMode:        m.editMode,
 		EditValue:       m.editValue,
+		EditCursor:      m.editCursor,
 	}
 	return pages.RenderSettingsPage(state)
 }
