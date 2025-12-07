@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          if [ "$GOOS" = "windows" ]; then
+            go build -ldflags="-s -w" -o mihosh.exe .
+          else
+            go build -ldflags="-s -w" -o mihosh .
+          fi
+
+      - name: Package
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip mihosh-${{ matrix.goos }}-${{ matrix.goarch }}.zip mihosh.exe
+          else
+            tar -czvf mihosh-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz mihosh
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihosh-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: mihosh-*.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mihosh-*.tar.gz
+            mihosh-*.zip
+          generate_release_notes: true
