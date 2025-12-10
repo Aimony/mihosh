@@ -28,4 +28,5 @@ Thumbs.db
 
 # 配置文件（不提交用户配置）
 config.yaml
-mihosh-linux-amd64
+mihosh-*
+deploy.sh

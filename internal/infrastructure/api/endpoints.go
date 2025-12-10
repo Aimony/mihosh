@@ -105,3 +105,15 @@ func (c *Client) GetConnections() (*model.ConnectionsResponse, error) {
 
 	return &resp, nil
 }
+
+// CloseConnection 关闭指定连接
+func (c *Client) CloseConnection(id string) error {
+	_, err := c.DoRequest("DELETE", "/connections/"+id, nil)
+	return err
+}
+
+// CloseAllConnections 关闭所有连接
+func (c *Client) CloseAllConnections() error {
+	_, err := c.DoRequest("DELETE", "/connections", nil)
+	return err
+}

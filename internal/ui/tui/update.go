@@ -121,6 +121,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editMode = false
 		m.err = nil
 
+	case connectionClosedMsg:
+		// 连接关闭后调整选择索引
+		if m.selectedConn > 0 {
+			m.selectedConn--
+		}
+
+	case allConnectionsClosedMsg:
+		// 所有连接关闭后重置状态
+		m.selectedConn = 0
+		m.connScrollTop = 0
+
 	case errMsg:
 		m.err = msg
 		m.testing = false

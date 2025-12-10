@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"strings"
+
+	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/ui/tui/pages"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -60,11 +63,158 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // updateConnectionsPage 更新连接页面
 func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// 过滤模式处理
+	if m.connFilterMode {
+		return m.handleConnFilterMode(msg)
+	}
+
 	switch {
 	case key.Matches(msg, keys.Refresh):
 		return m, fetchConnections(m.client)
+
+	case key.Matches(msg, keys.Up):
+		if m.selectedConn > 0 {
+			m.selectedConn--
+			// 调整滚动位置
+			if m.selectedConn < m.connScrollTop {
+				m.connScrollTop = m.selectedConn
+			}
+		}
+
+	case key.Matches(msg, keys.Down):
+		connCount := m.getFilteredConnCount()
+		if m.selectedConn < connCount-1 {
+			m.selectedConn++
+		}
+
+	case msg.String() == "x":
+		// 关闭选中的连接
+		conn := m.getSelectedConnection()
+		if conn != nil {
+			return m, tea.Batch(
+				closeConnection(m.client, conn.ID),
+				fetchConnections(m.client),
+			)
+		}
+
+	case msg.String() == "X":
+		// 关闭所有连接
+		return m, tea.Batch(
+			closeAllConnections(m.client),
+			fetchConnections(m.client),
+		)
+
+	case msg.String() == "/":
+		// 进入搜索模式
+		m.connFilterMode = true
+		return m, nil
+
+	case key.Matches(msg, keys.Escape):
+		// 清除过滤
+		if m.connFilter != "" {
+			m.connFilter = ""
+			m.selectedConn = 0
+			m.connScrollTop = 0
+		}
 	}
+
 	return m, nil
+}
+
+// handleConnFilterMode 处理连接过滤输入
+func (m Model) handleConnFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Escape):
+		m.connFilterMode = false
+		return m, nil
+
+	case key.Matches(msg, keys.Enter):
+		m.connFilterMode = false
+		m.selectedConn = 0
+		m.connScrollTop = 0
+		return m, nil
+
+	case key.Matches(msg, keys.Backspace):
+		if len(m.connFilter) > 0 {
+			m.connFilter = m.connFilter[:len(m.connFilter)-1]
+		}
+
+	default:
+		input := msg.String()
+		if len(input) == 1 && input[0] >= 32 && input[0] < 127 {
+			m.connFilter += input
+		}
+	}
+
+	return m, nil
+}
+
+// getFilteredConnCount 获取过滤后的连接数量
+func (m Model) getFilteredConnCount() int {
+	if m.connections == nil {
+		return 0
+	}
+	if m.connFilter == "" {
+		return len(m.connections.Connections)
+	}
+	// 简单计数
+	count := 0
+	filter := m.connFilter
+	for _, conn := range m.connections.Connections {
+		if containsFilter(conn, filter) {
+			count++
+		}
+	}
+	return count
+}
+
+// getSelectedConnection 获取当前选中的连接
+func (m Model) getSelectedConnection() *model.Connection {
+	if m.connections == nil || len(m.connections.Connections) == 0 {
+		return nil
+	}
+
+	if m.connFilter == "" {
+		if m.selectedConn >= 0 && m.selectedConn < len(m.connections.Connections) {
+			return &m.connections.Connections[m.selectedConn]
+		}
+		return nil
+	}
+
+	// 过滤后的列表中查找
+	idx := 0
+	for i := range m.connections.Connections {
+		if containsFilter(m.connections.Connections[i], m.connFilter) {
+			if idx == m.selectedConn {
+				return &m.connections.Connections[i]
+			}
+			idx++
+		}
+	}
+	return nil
+}
+
+// containsFilter 检查连接是否匹配过滤条件
+func containsFilter(conn model.Connection, filter string) bool {
+	if filter == "" {
+		return true
+	}
+	filter = strings.ToLower(filter)
+	if strings.Contains(strings.ToLower(conn.Metadata.Host), filter) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(conn.Rule), filter) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(conn.Metadata.DestinationIP), filter) {
+		return true
+	}
+	for _, chain := range conn.Chains {
+		if strings.Contains(strings.ToLower(chain), filter) {
+			return true
+		}
+	}
+	return false
 }
 
 // updateSettingsPage 更新设置页面

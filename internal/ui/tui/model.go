@@ -35,6 +35,11 @@ type Model struct {
 	editValue       string
 	editCursor      int      // 编辑时光标位置
 	testFailures    []string // 记录测速失败的节点
+	// 连接页面状态
+	selectedConn   int    // 选中的连接索引
+	connScrollTop  int    // 连接列表滚动偏移
+	connFilterMode bool   // 是否处于过滤输入模式
+	connFilter     string // 连接过滤关键词
 }
 
 // 消息类型
@@ -48,7 +53,9 @@ type (
 		delay int
 		err   error
 	}
-	configSavedMsg struct{}
+	configSavedMsg          struct{}
+	connectionClosedMsg     struct{ id string }
+	allConnectionsClosedMsg struct{}
 )
 
 // 快捷键定义

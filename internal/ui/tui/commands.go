@@ -75,3 +75,23 @@ func testAllProxies(client *api.Client, proxies []string, testURL string, timeou
 		return tea.Batch(cmds...)()
 	}
 }
+
+// closeConnection 关闭单个连接
+func closeConnection(client *api.Client, id string) tea.Cmd {
+	return func() tea.Msg {
+		if err := client.CloseConnection(id); err != nil {
+			return errMsg(err)
+		}
+		return connectionClosedMsg{id: id}
+	}
+}
+
+// closeAllConnections 关闭所有连接
+func closeAllConnections(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		if err := client.CloseAllConnections(); err != nil {
+			return errMsg(err)
+		}
+		return allConnectionsClosedMsg{}
+	}
+}
