@@ -156,6 +156,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectedConn = 0
 		m.connScrollTop = 0
 
+	case ipInfoMsg:
+		// 保存IP地理信息
+		if msg.info != nil {
+			m.connIPInfo = msg.info
+		}
+
 	case errMsg:
 		m.err = msg
 		m.testing = false

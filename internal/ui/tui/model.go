@@ -42,6 +42,7 @@ type Model struct {
 	connFilter         string            // 连接过滤关键词
 	connDetailMode     bool              // 是否处于详情查看模式
 	connDetailSnapshot *model.Connection // 详情模式下的连接快照
+	connIPInfo         *model.IPInfo     // 目标IP的地理信息
 }
 
 // 消息类型

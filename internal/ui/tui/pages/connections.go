@@ -23,6 +23,7 @@ type ConnectionsPageState struct {
 	FilterMode         bool
 	DetailMode         bool              // 是否显示详情
 	SelectedConnection *model.Connection // 选中的连接
+	IPInfo             *model.IPInfo     // 目标IP地理信息
 }
 
 // 表格列宽配置
@@ -45,7 +46,7 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 
 	// 详情模式：渲染连接详情
 	if state.DetailMode && state.SelectedConnection != nil {
-		return renderConnectionDetail(state.SelectedConnection, state.Width)
+		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Width)
 	}
 
 	// 样式定义
@@ -258,7 +259,7 @@ func truncateString(s string, maxWidth int) string {
 }
 
 // renderConnectionDetail 渲染连接详情（JSON格式）
-func renderConnectionDetail(conn *model.Connection, width int) string {
+func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, width int) string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(styles.ColorPrimary)
@@ -268,6 +269,9 @@ func renderConnectionDetail(conn *model.Connection, width int) string {
 
 	jsonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00FF00"))
+
+	ipInfoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00BFFF"))
 
 	// 将连接信息格式化为JSON
 	jsonBytes, err := json.MarshalIndent(conn, "", "  ")
@@ -294,9 +298,49 @@ func renderConnectionDetail(conn *model.Connection, width int) string {
 	// 添加JSON内容
 	content = append(content, jsonStyle.Render(string(jsonBytes)))
 	content = append(content, "")
+
+	// 添加IP地理信息
+	content = append(content, renderIPInfoSection(ipInfo, ipInfoStyle, dimStyle))
+	content = append(content, "")
 	content = append(content, dimStyle.Render("[Esc/Enter] 返回列表"))
 
 	return strings.Join(content, "\n")
+}
+
+// renderIPInfoSection 渲染IP地理信息部分
+func renderIPInfoSection(ipInfo *model.IPInfo, infoStyle, dimStyle lipgloss.Style) string {
+	var lines []string
+	lines = append(lines, dimStyle.Render("─── 目标 IP 地理信息 ───"))
+	lines = append(lines, "")
+
+	if ipInfo == nil {
+		lines = append(lines, dimStyle.Render("正在加载 IP 信息..."))
+		return strings.Join(lines, "\n")
+	}
+
+	// 主要信息行：IP (ASN)
+	ipLine := fmt.Sprintf("⊕ %s ( AS%d )", ipInfo.IP, ipInfo.ASN)
+	lines = append(lines, infoStyle.Render(ipLine))
+
+	// 地区和ISP信息行
+	locationLine := fmt.Sprintf("⊕ %s  ☐ %s", ipInfo.Country, ipInfo.ISP)
+	lines = append(lines, infoStyle.Render(locationLine))
+
+	// 详细信息（可选显示）
+	if ipInfo.Organization != "" && ipInfo.Organization != ipInfo.ISP {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  组织: %s", ipInfo.Organization)))
+	}
+	if ipInfo.ASNOrganization != "" && ipInfo.ASNOrganization != ipInfo.ISP {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  ASN组织: %s", ipInfo.ASNOrganization)))
+	}
+	if ipInfo.Timezone != "" {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  时区: %s", ipInfo.Timezone)))
+	}
+	if ipInfo.Latitude != 0 || ipInfo.Longitude != 0 {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  坐标: %.3f, %.3f", ipInfo.Latitude, ipInfo.Longitude)))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // filterConnections 过滤连接

@@ -1,6 +1,12 @@
 package tui
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -93,5 +99,43 @@ func closeAllConnections(client *api.Client) tea.Cmd {
 			return errMsg(err)
 		}
 		return allConnectionsClosedMsg{}
+	}
+}
+
+// ipInfoMsg IP信息响应消息
+type ipInfoMsg struct {
+	info *model.IPInfo
+	err  error
+}
+
+// fetchIPInfo 获取IP地理位置信息
+func fetchIPInfo(ip string) tea.Cmd {
+	return func() tea.Msg {
+		if ip == "" {
+			return ipInfoMsg{nil, nil}
+		}
+
+		client := &http.Client{Timeout: 5 * time.Second}
+		url := fmt.Sprintf("https://api.ip.sb/geoip/%s", ip)
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return ipInfoMsg{nil, err}
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Accept", "*/*")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return ipInfoMsg{nil, err}
+		}
+		defer resp.Body.Close()
+
+		var info model.IPInfo
+		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+			return ipInfoMsg{nil, err}
+		}
+
+		return ipInfoMsg{&info, nil}
 	}
 }

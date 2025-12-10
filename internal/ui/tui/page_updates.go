@@ -69,6 +69,7 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Enter):
 			m.connDetailMode = false
 			m.connDetailSnapshot = nil // 清除快照
+			m.connIPInfo = nil         // 清除IP信息
 			return m, nil
 		}
 		return m, nil
@@ -106,6 +107,9 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			snapshot := *conn
 			m.connDetailSnapshot = &snapshot
 			m.connDetailMode = true
+			m.connIPInfo = nil // 清除旧的IP信息
+			// 异步获取目标IP的地理信息
+			return m, fetchIPInfo(conn.Metadata.DestinationIP)
 		}
 		return m, nil
 

@@ -32,6 +32,7 @@ func (m Model) renderConnectionsPage() string {
 		FilterMode:         m.connFilterMode,
 		DetailMode:         m.connDetailMode,
 		SelectedConnection: m.connDetailSnapshot, // 使用快照
+		IPInfo:             m.connIPInfo,         // IP地理信息
 	}
 	return pages.RenderConnectionsPage(state)
 }
