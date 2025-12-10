@@ -2,11 +2,25 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// connTickMsg 连接页面定时刷新消息
+type connTickMsg time.Time
+
+// connRefreshInterval 连接刷新间隔
+const connRefreshInterval = 1 * time.Second
+
+// connTick 创建连接页面定时器
+func connTick() tea.Cmd {
+	return tea.Tick(connRefreshInterval, func(t time.Time) tea.Msg {
+		return connTickMsg(t)
+	})
+}
 
 // Init 初始化
 func (m Model) Init() tea.Cmd {
@@ -105,6 +119,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case connectionsMsg:
 		m.connections = msg
+		// 如果当前在连接页面，继续定时刷新
+		if m.currentPage == components.PageConnections {
+			return m, connTick()
+		}
+
+	case connTickMsg:
+		// 定时器触发：仅在连接页面时刷新
+		if m.currentPage == components.PageConnections {
+			return m, fetchConnections(m.client)
+		}
 
 	case testDoneMsg:
 		m.testing = false
@@ -145,7 +169,8 @@ func (m Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
-		return fetchConnections(m.client)
+		// 进入连接页面时启动自动刷新
+		return tea.Batch(fetchConnections(m.client), connTick())
 	}
 	return nil
 }
