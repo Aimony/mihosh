@@ -36,11 +36,12 @@ type Model struct {
 	editCursor      int      // 编辑时光标位置
 	testFailures    []string // 记录测速失败的节点
 	// 连接页面状态
-	selectedConn   int    // 选中的连接索引
-	connScrollTop  int    // 连接列表滚动偏移
-	connFilterMode bool   // 是否处于过滤输入模式
-	connFilter     string // 连接过滤关键词
-	connDetailMode bool   // 是否处于详情查看模式
+	selectedConn       int               // 选中的连接索引
+	connScrollTop      int               // 连接列表滚动偏移
+	connFilterMode     bool              // 是否处于过滤输入模式
+	connFilter         string            // 连接过滤关键词
+	connDetailMode     bool              // 是否处于详情查看模式
+	connDetailSnapshot *model.Connection // 详情模式下的连接快照
 }
 
 // 消息类型

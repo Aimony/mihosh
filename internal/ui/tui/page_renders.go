@@ -31,7 +31,7 @@ func (m Model) renderConnectionsPage() string {
 		FilterText:         m.connFilter,
 		FilterMode:         m.connFilterMode,
 		DetailMode:         m.connDetailMode,
-		SelectedConnection: m.getSelectedConnection(),
+		SelectedConnection: m.connDetailSnapshot, // 使用快照
 	}
 	return pages.RenderConnectionsPage(state)
 }

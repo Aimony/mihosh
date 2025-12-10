@@ -68,6 +68,7 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Enter):
 			m.connDetailMode = false
+			m.connDetailSnapshot = nil // 清除快照
 			return m, nil
 		}
 		return m, nil
@@ -98,9 +99,12 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Enter):
-		// 显示连接详情
+		// 显示连接详情 - 保存快照
 		conn := m.getSelectedConnection()
 		if conn != nil {
+			// 复制连接数据作为快照
+			snapshot := *conn
+			m.connDetailSnapshot = &snapshot
 			m.connDetailMode = true
 		}
 		return m, nil
