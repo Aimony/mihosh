@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,13 +14,15 @@ import (
 
 // ConnectionsPageState 连接页面状态
 type ConnectionsPageState struct {
-	Connections   *model.ConnectionsResponse
-	Width         int
-	Height        int
-	SelectedIndex int
-	ScrollTop     int
-	FilterText    string
-	FilterMode    bool
+	Connections        *model.ConnectionsResponse
+	Width              int
+	Height             int
+	SelectedIndex      int
+	ScrollTop          int
+	FilterText         string
+	FilterMode         bool
+	DetailMode         bool              // 是否显示详情
+	SelectedConnection *model.Connection // 选中的连接
 }
 
 // 表格列宽配置
@@ -38,6 +41,11 @@ const (
 func RenderConnectionsPage(state ConnectionsPageState) string {
 	if state.Connections == nil {
 		return "正在加载连接信息..."
+	}
+
+	// 详情模式：渲染连接详情
+	if state.DetailMode && state.SelectedConnection != nil {
+		return renderConnectionDetail(state.SelectedConnection, state.Width)
 	}
 
 	// 样式定义
@@ -247,6 +255,48 @@ func truncateString(s string, maxWidth int) string {
 		currentWidth += rw
 	}
 	return result + ".."
+}
+
+// renderConnectionDetail 渲染连接详情（JSON格式）
+func renderConnectionDetail(conn *model.Connection, width int) string {
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.ColorPrimary)
+
+	dimStyle := lipgloss.NewStyle().
+		Foreground(styles.ColorSecondary)
+
+	jsonStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FF00"))
+
+	// 将连接信息格式化为JSON
+	jsonBytes, err := json.MarshalIndent(conn, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("无法解析连接信息: %v", err)
+	}
+
+	var content []string
+	content = append(content, headerStyle.Render("连接详情"))
+	content = append(content, "")
+
+	// 基本信息摘要
+	host := conn.Metadata.Host
+	if host == "" {
+		host = conn.Metadata.DestinationIP
+	}
+	content = append(content, fmt.Sprintf("主机: %s", headerStyle.Render(host)))
+	content = append(content, fmt.Sprintf("规则: %s → %s", conn.Rule, strings.Join(conn.Chains, " → ")))
+	content = append(content, fmt.Sprintf("流量: ↓%s  ↑%s", utils.FormatBytes(conn.Download), utils.FormatBytes(conn.Upload)))
+	content = append(content, "")
+	content = append(content, dimStyle.Render("─── JSON 详情 ───"))
+	content = append(content, "")
+
+	// 添加JSON内容
+	content = append(content, jsonStyle.Render(string(jsonBytes)))
+	content = append(content, "")
+	content = append(content, dimStyle.Render("[Esc/Enter] 返回列表"))
+
+	return strings.Join(content, "\n")
 }
 
 // filterConnections 过滤连接

@@ -40,6 +40,7 @@ type Model struct {
 	connScrollTop  int    // 连接列表滚动偏移
 	connFilterMode bool   // 是否处于过滤输入模式
 	connFilter     string // 连接过滤关键词
+	connDetailMode bool   // 是否处于详情查看模式
 }
 
 // 消息类型

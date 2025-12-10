@@ -63,6 +63,16 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // updateConnectionsPage 更新连接页面
 func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// 详情模式处理
+	if m.connDetailMode {
+		switch {
+		case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Enter):
+			m.connDetailMode = false
+			return m, nil
+		}
+		return m, nil
+	}
+
 	// 过滤模式处理
 	if m.connFilterMode {
 		return m.handleConnFilterMode(msg)
@@ -86,6 +96,14 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedConn < connCount-1 {
 			m.selectedConn++
 		}
+
+	case key.Matches(msg, keys.Enter):
+		// 显示连接详情
+		conn := m.getSelectedConnection()
+		if conn != nil {
+			m.connDetailMode = true
+		}
+		return m, nil
 
 	case msg.String() == "x":
 		// 关闭选中的连接

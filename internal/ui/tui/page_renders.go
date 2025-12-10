@@ -23,13 +23,15 @@ func (m Model) renderNodesPage() string {
 // renderConnectionsPage 渲染连接监控页面
 func (m Model) renderConnectionsPage() string {
 	state := pages.ConnectionsPageState{
-		Connections:   m.connections,
-		Width:         m.width,
-		Height:        m.height,
-		SelectedIndex: m.selectedConn,
-		ScrollTop:     m.connScrollTop,
-		FilterText:    m.connFilter,
-		FilterMode:    m.connFilterMode,
+		Connections:        m.connections,
+		Width:              m.width,
+		Height:             m.height,
+		SelectedIndex:      m.selectedConn,
+		ScrollTop:          m.connScrollTop,
+		FilterText:         m.connFilter,
+		FilterMode:         m.connFilterMode,
+		DetailMode:         m.connDetailMode,
+		SelectedConnection: m.getSelectedConnection(),
 	}
 	return pages.RenderConnectionsPage(state)
 }
