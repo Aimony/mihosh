@@ -70,6 +70,17 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.connDetailMode = false
 			m.connDetailSnapshot = nil // 清除快照
 			m.connIPInfo = nil         // 清除IP信息
+			m.connDetailScroll = 0     // 重置滚动位置
+			return m, nil
+		case key.Matches(msg, keys.Up):
+			// 向上滚动
+			if m.connDetailScroll > 0 {
+				m.connDetailScroll--
+			}
+			return m, nil
+		case key.Matches(msg, keys.Down):
+			// 向下滚动
+			m.connDetailScroll++
 			return m, nil
 		}
 		return m, nil

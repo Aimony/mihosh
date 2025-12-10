@@ -24,6 +24,7 @@ type ConnectionsPageState struct {
 	DetailMode         bool              // 是否显示详情
 	SelectedConnection *model.Connection // 选中的连接
 	IPInfo             *model.IPInfo     // 目标IP地理信息
+	DetailScroll       int               // 详情页面滚动偏移
 }
 
 // 表格列宽配置
@@ -46,7 +47,7 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 
 	// 详情模式：渲染连接详情
 	if state.DetailMode && state.SelectedConnection != nil {
-		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Width)
+		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Width, state.Height, state.DetailScroll)
 	}
 
 	// 样式定义
@@ -258,8 +259,8 @@ func truncateString(s string, maxWidth int) string {
 	return result + ".."
 }
 
-// renderConnectionDetail 渲染连接详情（JSON格式）
-func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, width int) string {
+// renderConnectionDetail 渲染连接详情（JSON格式，支持滚动）
+func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, width, height, scrollTop int) string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(styles.ColorPrimary)
@@ -279,32 +280,77 @@ func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, width 
 		return fmt.Sprintf("无法解析连接信息: %v", err)
 	}
 
-	var content []string
-	content = append(content, headerStyle.Render("连接详情"))
-	content = append(content, "")
+	// 构建完整内容
+	var allLines []string
+	allLines = append(allLines, headerStyle.Render("连接详情"))
+	allLines = append(allLines, "")
 
 	// 基本信息摘要
 	host := conn.Metadata.Host
 	if host == "" {
 		host = conn.Metadata.DestinationIP
 	}
-	content = append(content, fmt.Sprintf("主机: %s", headerStyle.Render(host)))
-	content = append(content, fmt.Sprintf("规则: %s → %s", conn.Rule, strings.Join(conn.Chains, " → ")))
-	content = append(content, fmt.Sprintf("流量: ↓%s  ↑%s", utils.FormatBytes(conn.Download), utils.FormatBytes(conn.Upload)))
-	content = append(content, "")
-	content = append(content, dimStyle.Render("─── JSON 详情 ───"))
-	content = append(content, "")
+	allLines = append(allLines, fmt.Sprintf("主机: %s", headerStyle.Render(host)))
+	allLines = append(allLines, fmt.Sprintf("规则: %s → %s", conn.Rule, strings.Join(conn.Chains, " → ")))
+	allLines = append(allLines, fmt.Sprintf("流量: ↓%s  ↑%s", utils.FormatBytes(conn.Download), utils.FormatBytes(conn.Upload)))
+	allLines = append(allLines, "")
+	allLines = append(allLines, dimStyle.Render("─── JSON 详情 ───"))
+	allLines = append(allLines, "")
 
-	// 添加JSON内容
-	content = append(content, jsonStyle.Render(string(jsonBytes)))
-	content = append(content, "")
+	// 添加JSON内容（每行分开）
+	jsonLines := strings.Split(jsonStyle.Render(string(jsonBytes)), "\n")
+	allLines = append(allLines, jsonLines...)
+	allLines = append(allLines, "")
 
 	// 添加IP地理信息
-	content = append(content, renderIPInfoSection(ipInfo, ipInfoStyle, dimStyle))
-	content = append(content, "")
-	content = append(content, dimStyle.Render("[Esc/Enter] 返回列表"))
+	ipInfoLines := strings.Split(renderIPInfoSection(ipInfo, ipInfoStyle, dimStyle), "\n")
+	allLines = append(allLines, ipInfoLines...)
+	allLines = append(allLines, "")
 
-	return strings.Join(content, "\n")
+	// 计算可显示的行数
+	maxDisplay := height - 4 // 留出空间给帮助提示和边框
+	if maxDisplay < 10 {
+		maxDisplay = 10
+	}
+
+	totalLines := len(allLines)
+
+	// 限制滚动范围
+	if scrollTop > totalLines-maxDisplay {
+		scrollTop = totalLines - maxDisplay
+	}
+	if scrollTop < 0 {
+		scrollTop = 0
+	}
+
+	// 截取显示内容
+	endIdx := scrollTop + maxDisplay
+	if endIdx > totalLines {
+		endIdx = totalLines
+	}
+
+	visibleLines := allLines[scrollTop:endIdx]
+
+	// 构建输出
+	var output []string
+
+	// 滚动提示（上方）
+	if scrollTop > 0 {
+		output = append(output, dimStyle.Render(fmt.Sprintf("↑ 还有 %d 行", scrollTop)))
+	}
+
+	output = append(output, visibleLines...)
+
+	// 滚动提示（下方）
+	if endIdx < totalLines {
+		output = append(output, dimStyle.Render(fmt.Sprintf("↓ 还有 %d 行", totalLines-endIdx)))
+	}
+
+	// 帮助提示
+	output = append(output, "")
+	output = append(output, dimStyle.Render("[↑↓] 滚动 [Esc/Enter] 返回列表"))
+
+	return strings.Join(output, "\n")
 }
 
 // renderIPInfoSection 渲染IP地理信息部分

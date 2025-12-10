@@ -43,6 +43,7 @@ type Model struct {
 	connDetailMode     bool              // 是否处于详情查看模式
 	connDetailSnapshot *model.Connection // 详情模式下的连接快照
 	connIPInfo         *model.IPInfo     // 目标IP的地理信息
+	connDetailScroll   int               // 详情页面滚动偏移量
 }
 
 // 消息类型
