@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -119,34 +121,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case connectionsMsg:
 		m.connections = msg
-		// 更新图表数据
+		// 更新图表数据 - 连接数
 		if msg != nil && m.chartData != nil {
-			// 计算速度（当前总量 - 上次总量）
-			uploadSpeed := int64(0)
-			downloadSpeed := int64(0)
-			if m.lastUpload > 0 {
-				uploadSpeed = msg.UploadTotal - m.lastUpload
-				if uploadSpeed < 0 {
-					uploadSpeed = 0
-				}
-			}
-			if m.lastDownload > 0 {
-				downloadSpeed = msg.DownloadTotal - m.lastDownload
-				if downloadSpeed < 0 {
-					downloadSpeed = 0
-				}
-			}
-			m.lastUpload = msg.UploadTotal
-			m.lastDownload = msg.DownloadTotal
-
-			// 添加速度数据
-			m.chartData.AddSpeedData(uploadSpeed, downloadSpeed)
-			// 添加连接数
 			m.chartData.AddConnCountData(len(msg.Connections))
-		}
-		// 如果当前在连接页面，继续定时刷新
-		if m.currentPage == components.PageConnections {
-			return m, connTick()
 		}
 
 	case memoryMsg:
@@ -154,11 +131,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.chartData != nil {
 			m.chartData.AddMemoryData(msg.memory)
 		}
+		// 继续监听WebSocket消息
+		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
+			return m, listenWSMessages(m.wsMsgChan)
+		}
+
+	case trafficWSMsg:
+		// 更新速度图表数据
+		if m.chartData != nil {
+			m.chartData.AddSpeedData(msg.up, msg.down)
+		}
+		// 继续监听WebSocket消息
+		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
+			return m, listenWSMessages(m.wsMsgChan)
+		}
+
+	case connectionsWSMsg:
+		// 更新连接数据（转换为model.ConnectionsResponse）
+		m.connections = convertToConnectionsResponse(msg.data)
+		// 更新连接数图表
+		if m.chartData != nil {
+			m.chartData.AddConnCountData(len(msg.data.Connections))
+		}
+		// 继续监听WebSocket消息
+		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
+			return m, listenWSMessages(m.wsMsgChan)
+		}
 
 	case connTickMsg:
-		// 定时器触发：仅在连接页面时刷新
+		// 定时器触发：仅继续定时器（连接数据由WebSocket推送）
 		if m.currentPage == components.PageConnections {
-			return m, fetchConnectionsAndMemory(m.client)
+			return m, connTick()
 		}
 
 	case testDoneMsg:
@@ -206,8 +209,17 @@ func (m Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
-		// 进入连接页面时启动自动刷新（同时获取连接和内存数据）
-		return tea.Batch(fetchConnectionsAndMemory(m.client), connTick())
+		// 进入连接页面时启动WebSocket流（connections数据由WebSocket推送）
+		return tea.Batch(
+			startWSStreams(m.wsClient, m.wsMsgChan),
+			listenWSMessages(m.wsMsgChan),
+			connTick(),
+		)
+	default:
+		// 离开连接页面时停止WebSocket流
+		if m.wsClient != nil && m.wsClient.IsRunning() {
+			return stopWSStreams(m.wsClient)
+		}
 	}
 	return nil
 }
@@ -218,7 +230,8 @@ func (m Model) refreshCurrentPage() tea.Cmd {
 	case components.PageNodes:
 		return tea.Batch(fetchGroups(m.client), fetchProxies(m.client))
 	case components.PageConnections:
-		return fetchConnectionsAndMemory(m.client)
+		// connections数据由WebSocket推送，无需手动刷新
+		return nil
 	case components.PageSettings:
 		cfg, _ := m.configSvc.LoadConfig()
 		m.config = cfg
@@ -234,5 +247,39 @@ func (m *Model) updateCurrentProxies() {
 		if group, ok := m.groups[groupName]; ok {
 			m.currentProxies = group.All
 		}
+	}
+}
+
+// convertToConnectionsResponse 将api.ConnectionsData转换为model.ConnectionsResponse
+func convertToConnectionsResponse(data api.ConnectionsData) *model.ConnectionsResponse {
+	connections := make([]model.Connection, len(data.Connections))
+	for i, conn := range data.Connections {
+		connections[i] = model.Connection{
+			ID:            conn.ID,
+			Upload:        conn.Upload,
+			Download:      conn.Download,
+			Start:         conn.Start,
+			Chains:        conn.Chains,
+			Rule:          conn.Rule,
+			RulePayload:   conn.RulePayload,
+			DownloadSpeed: conn.DownloadSpeed,
+			UploadSpeed:   conn.UploadSpeed,
+			Metadata: model.Metadata{
+				Network:         conn.Metadata.Network,
+				Type:            conn.Metadata.Type,
+				SourceIP:        conn.Metadata.SourceIP,
+				DestinationIP:   conn.Metadata.DestinationIP,
+				SourcePort:      conn.Metadata.SourcePort,
+				DestinationPort: conn.Metadata.DestinationPort,
+				Host:            conn.Metadata.Host,
+				Process:         conn.Metadata.Process,
+				ProcessPath:     conn.Metadata.ProcessPath,
+			},
+		}
+	}
+	return &model.ConnectionsResponse{
+		DownloadTotal: data.DownloadTotal,
+		UploadTotal:   data.UploadTotal,
+		Connections:   connections,
 	}
 }

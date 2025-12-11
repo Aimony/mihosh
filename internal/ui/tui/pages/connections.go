@@ -471,14 +471,16 @@ func renderChartsSection(state ConnectionsPageState, width int) string {
 
 	// 速度图表配置
 	speedConfig := components.SparklineConfig{
-		Title:    "上传/下载速度",
-		Width:    chartWidth,
-		Height:   4,
-		Color1:   lipgloss.Color("#00BFFF"), // 蓝色 - 上传
-		Color2:   lipgloss.Color("#9370DB"), // 紫色 - 下载
-		Label1:   "上传速度",
-		Label2:   "下载速度",
-		MinValue: 1024, // 最小 1KB/s
+		Title:      "上传/下载速度",
+		Width:      chartWidth,
+		Height:     4,
+		Color1:     lipgloss.Color("#00BFFF"), // 蓝色 - 上传
+		Color2:     lipgloss.Color("#9370DB"), // 紫色 - 下载
+		Label1:     "上传速度",
+		Label2:     "下载速度",
+		MinValue:   0, // Y轴完全自适应
+		ShowXAxis:  true,
+		MaxSeconds: 60,
 		FormatFunc: func(v int64) string {
 			return formatSpeed(v)
 		},
@@ -486,12 +488,14 @@ func renderChartsSection(state ConnectionsPageState, width int) string {
 
 	// 内存图表配置
 	memoryConfig := components.SparklineConfig{
-		Title:    "内存使用",
-		Width:    chartWidth,
-		Height:   4,
-		Color1:   lipgloss.Color("#00FF7F"), // 绿色
-		Label1:   "内存使用",
-		MinValue: 1024 * 1024, // 最小 1MB
+		Title:      "内存使用",
+		Width:      chartWidth,
+		Height:     4,
+		Color1:     lipgloss.Color("#00FF7F"), // 绿色
+		Label1:     "内存使用",
+		MinValue:   0, // Y轴完全自适应
+		ShowXAxis:  true,
+		MaxSeconds: 60,
 		FormatFunc: func(v int64) string {
 			return formatMemory(v)
 		},
@@ -499,12 +503,14 @@ func renderChartsSection(state ConnectionsPageState, width int) string {
 
 	// 连接数图表配置
 	connConfig := components.SparklineConfig{
-		Title:    "连接",
-		Width:    chartWidth,
-		Height:   4,
-		Color1:   lipgloss.Color("#FFD700"), // 金色
-		Label1:   "连接",
-		MinValue: 0, // 连接数不设最小值，自动适应
+		Title:      "连接",
+		Width:      chartWidth,
+		Height:     4,
+		Color1:     lipgloss.Color("#FFD700"), // 金色
+		Label1:     "连接",
+		MinValue:   0, // 连接数Y轴自适应
+		ShowXAxis:  true,
+		MaxSeconds: 60,
 		FormatFunc: func(v int64) string {
 			return fmt.Sprintf("%d", v)
 		},

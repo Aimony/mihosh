@@ -20,6 +20,8 @@ type SparklineConfig struct {
 	Label2     string             // 第二条线标签（可选）
 	FormatFunc func(int64) string // Y轴格式化函数
 	MinValue   int64              // Y轴最小刻度值（0表示自动）
+	ShowXAxis  bool               // 是否显示X轴时间标签
+	MaxSeconds int                // X轴最大秒数（默认60秒）
 }
 
 // DefaultSparklineConfig 默认配置
@@ -124,6 +126,12 @@ func RenderDualSparkline(data1, data2 []int64, config SparklineConfig) string {
 		rowContent := renderAreaRow(row, config.Height, sampled1, sampled2, maxVal, color1Style, color2Style)
 
 		lines = append(lines, labelStyle.Render(yLabel)+separator+rowContent)
+	}
+
+	// X轴时间标签
+	if config.ShowXAxis {
+		xAxisLine := renderXAxisLabels(labelWidth, chartWidth, config.MaxSeconds, axisStyle)
+		lines = append(lines, xAxisLine)
 	}
 
 	// 图例
@@ -279,4 +287,55 @@ func sampleData(data []int64, width int) []int64 {
 		result[i] = data[idx]
 	}
 	return result
+}
+
+// renderXAxisLabels 渲染X轴时间标签
+func renderXAxisLabels(labelWidth, chartWidth, maxSeconds int, axisStyle lipgloss.Style) string {
+	if maxSeconds <= 0 {
+		maxSeconds = 60 // 默认60秒
+	}
+
+	// 左侧填充（与Y轴标签对齐）
+	padding := strings.Repeat(" ", labelWidth+3)
+
+	// 计算标签位置
+	// 显示3-4个标签：起始、中间、结束
+	var labels []string
+
+	// 根据宽度决定显示几个标签
+	if chartWidth >= 30 {
+		// 显示4个标签：-60s, -40s, -20s, 0s
+		step := chartWidth / 3
+		positions := []int{0, step, step * 2, chartWidth - 1}
+		times := []int{-maxSeconds, -maxSeconds * 2 / 3, -maxSeconds / 3, 0}
+
+		var result strings.Builder
+		result.WriteString(padding)
+
+		lastPos := 0
+		for i, pos := range positions {
+			// 填充空格到当前位置
+			if pos > lastPos {
+				result.WriteString(strings.Repeat(" ", pos-lastPos))
+			}
+			label := fmt.Sprintf("%ds", times[i])
+			result.WriteString(axisStyle.Render(label))
+			lastPos = pos + len(label)
+		}
+		return result.String()
+	}
+
+	// 较窄时只显示2个标签
+	labels = append(labels, fmt.Sprintf("-%ds", maxSeconds))
+	labels = append(labels, "0s")
+
+	// 计算间距
+	leftLabel := axisStyle.Render(labels[0])
+	rightLabel := axisStyle.Render(labels[1])
+	gap := chartWidth - len(labels[0]) - len(labels[1])
+	if gap < 0 {
+		gap = 0
+	}
+
+	return padding + leftLabel + strings.Repeat(" ", gap) + rightLabel
 }

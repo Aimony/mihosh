@@ -47,6 +47,17 @@ type memoryMsg struct {
 	memory int64
 }
 
+// trafficWSMsg 流量WebSocket消息
+type trafficWSMsg struct {
+	up   int64
+	down int64
+}
+
+// connectionsWSMsg 连接WebSocket消息
+type connectionsWSMsg struct {
+	data api.ConnectionsData
+}
+
 func fetchMemory(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		mem, err := client.GetMemory()
@@ -61,6 +72,68 @@ func fetchMemory(client *api.Client) tea.Cmd {
 // fetchConnectionsAndMemory 同时获取连接和内存数据
 func fetchConnectionsAndMemory(client *api.Client) tea.Cmd {
 	return tea.Batch(fetchConnections(client), fetchMemory(client))
+}
+
+// startWSStreams 启动WebSocket流
+func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
+	return func() tea.Msg {
+		if wsClient == nil {
+			return nil
+		}
+
+		// 设置内存处理器
+		wsClient.SetMemoryHandler(func(data api.MemoryData) {
+			select {
+			case msgChan <- memoryMsg{memory: data.Inuse}:
+			default:
+				// channel满了就丢弃
+			}
+		})
+
+		// 设置流量处理器
+		wsClient.SetTrafficHandler(func(data api.TrafficData) {
+			select {
+			case msgChan <- trafficWSMsg{up: data.Up, down: data.Down}:
+			default:
+				// channel满了就丢弃
+			}
+		})
+
+		// 设置连接处理器
+		wsClient.SetConnectionsHandler(func(data api.ConnectionsData) {
+			select {
+			case msgChan <- connectionsWSMsg{data: data}:
+			default:
+				// channel满了就丢弃
+			}
+		})
+
+		// 启动WebSocket连接
+		wsClient.Start()
+		return nil
+	}
+}
+
+// stopWSStreams 停止WebSocket流
+func stopWSStreams(wsClient *api.WSClient) tea.Cmd {
+	return func() tea.Msg {
+		if wsClient != nil {
+			wsClient.Stop()
+		}
+		return nil
+	}
+}
+
+// listenWSMessages 监听WebSocket消息
+func listenWSMessages(msgChan chan interface{}) tea.Cmd {
+	return func() tea.Msg {
+		msg := <-msgChan
+		// 将interface{}转换为tea.Msg
+		if teaMsg, ok := msg.(tea.Msg); ok {
+			return teaMsg
+		}
+		return msg
+	}
 }
 
 func selectProxy(client *api.Client, group, proxy string) tea.Cmd {

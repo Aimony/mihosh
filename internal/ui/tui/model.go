@@ -48,6 +48,9 @@ type Model struct {
 	chartData    *model.ChartData // 图表历史数据
 	lastUpload   int64            // 上次上传总量（用于计算速度）
 	lastDownload int64            // 上次下载总量
+	// WebSocket客户端
+	wsClient  *api.WSClient    // WebSocket流客户端
+	wsMsgChan chan interface{} // WebSocket消息通道
 }
 
 // 消息类型
@@ -187,6 +190,9 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 	configSvc := service.NewConfigService()
 	connSvc := service.NewConnectionService(client)
 
+	// 创建WebSocket客户端
+	wsClient := api.NewWSClient(cfg.APIAddress, cfg.Secret)
+
 	return Model{
 		client:      client,
 		config:      cfg,
@@ -197,5 +203,7 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		timeout:     timeout,
 		currentPage: components.PageNodes,
 		chartData:   model.NewChartData(60),
+		wsClient:    wsClient,
+		wsMsgChan:   make(chan interface{}, 100), // 带缓冲的消息通道
 	}
 }
