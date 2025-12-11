@@ -15,6 +15,7 @@ const (
 	PageConnections
 	PageSettings
 	PageLogs
+	PageRules
 	PageHelp
 )
 
@@ -25,7 +26,8 @@ func RenderTabs(currentPage PageType, width int) string {
 		"[2] 连接监控",
 		"[3] 设置",
 		"[4] 日志",
-		"[5] 帮助",
+		"[5] 规则",
+		"[6] 帮助",
 	}
 
 	var rendered []string

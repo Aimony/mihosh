@@ -27,6 +27,8 @@ func (m Model) View() string {
 		content = m.renderHelpPage()
 	case components.PageLogs:
 		content = m.renderLogsPage()
+	case components.PageRules:
+		content = m.renderRulesPage()
 	}
 
 	// 渲染状态栏

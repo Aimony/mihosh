@@ -63,6 +63,12 @@ type Model struct {
 	selectedLog      int              // 选中的日志索引
 	logScrollTop     int              // 日志列表滚动偏移
 	logHScrollOffset int              // 日志水平滚动偏移
+	// 规则页面状态
+	rules          []model.Rule // 规则列表
+	ruleFilter     string       // 搜索关键词
+	ruleFilterMode bool         // 是否处于过滤输入模式
+	selectedRule   int          // 选中的规则索引
+	ruleScrollTop  int          // 规则列表滚动偏移
 }
 
 // 消息类型
@@ -99,6 +105,7 @@ type keyMap struct {
 	Page3     key.Binding
 	Page4     key.Binding
 	Page5     key.Binding
+	Page6     key.Binding
 	Escape    key.Binding
 	Save      key.Binding
 	Backspace key.Binding
@@ -171,7 +178,11 @@ var keys = keyMap{
 	),
 	Page5: key.NewBinding(
 		key.WithKeys("5"),
-		key.WithHelp("5", "帮助"),
+		key.WithHelp("5", "规则"),
+	),
+	Page6: key.NewBinding(
+		key.WithKeys("6"),
+		key.WithHelp("6", "帮助"),
 	),
 	Escape: key.NewBinding(
 		key.WithKeys("esc"),

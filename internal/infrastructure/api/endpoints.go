@@ -132,3 +132,18 @@ func (c *Client) GetMemory() (*model.MemoryResponse, error) {
 
 	return &resp, nil
 }
+
+// GetRules 获取规则列表
+func (c *Client) GetRules() (*model.RulesResponse, error) {
+	data, err := c.DoRequest("GET", "/rules", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp model.RulesResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}

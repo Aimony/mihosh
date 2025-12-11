@@ -526,3 +526,113 @@ func getLogLevelIndex(level string) int {
 	}
 	return 1 // 默认info
 }
+
+// updateRulesPage 更新规则页面
+func (m Model) updateRulesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// 过滤模式处理
+	if m.ruleFilterMode {
+		return m.handleRuleFilterMode(msg)
+	}
+
+	switch {
+	case key.Matches(msg, keys.Up):
+		if m.selectedRule > 0 {
+			m.selectedRule--
+			// 调整滚动位置
+			if m.selectedRule < m.ruleScrollTop {
+				m.ruleScrollTop = m.selectedRule
+			}
+		}
+
+	case key.Matches(msg, keys.Down):
+		ruleCount := m.getFilteredRuleCount()
+		if m.selectedRule < ruleCount-1 {
+			m.selectedRule++
+		}
+
+	case msg.String() == "/":
+		// 进入搜索模式
+		m.ruleFilterMode = true
+		return m, nil
+
+	case key.Matches(msg, keys.Refresh):
+		// 刷新规则列表
+		return m, fetchRules(m.client)
+
+	case key.Matches(msg, keys.Escape):
+		// 清除过滤
+		if m.ruleFilter != "" {
+			m.ruleFilter = ""
+			m.selectedRule = 0
+			m.ruleScrollTop = 0
+		}
+	}
+
+	return m, nil
+}
+
+// handleRuleFilterMode 处理规则过滤输入
+func (m Model) handleRuleFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Escape):
+		m.ruleFilterMode = false
+		return m, nil
+
+	case key.Matches(msg, keys.Enter):
+		m.ruleFilterMode = false
+		m.selectedRule = 0
+		m.ruleScrollTop = 0
+		return m, nil
+
+	case key.Matches(msg, keys.Backspace):
+		if len(m.ruleFilter) > 0 {
+			m.ruleFilter = m.ruleFilter[:len(m.ruleFilter)-1]
+		}
+
+	default:
+		input := msg.String()
+		if len(input) == 1 && input[0] >= 32 && input[0] < 127 {
+			m.ruleFilter += input
+		}
+	}
+
+	return m, nil
+}
+
+// getFilteredRuleCount 获取过滤后的规则数量
+func (m Model) getFilteredRuleCount() int {
+	if len(m.rules) == 0 {
+		return 0
+	}
+
+	if m.ruleFilter == "" {
+		return len(m.rules)
+	}
+
+	// 分割关键词
+	keywords := strings.Fields(strings.ToLower(m.ruleFilter))
+	if len(keywords) == 0 {
+		return len(m.rules)
+	}
+
+	count := 0
+	for _, rule := range m.rules {
+		// 构建搜索文本
+		searchText := strings.ToLower(rule.Type + " " + rule.Payload + " " + rule.Proxy)
+
+		// 所有关键词都必须匹配
+		allMatch := true
+		for _, keyword := range keywords {
+			if !strings.Contains(searchText, keyword) {
+				allMatch = false
+				break
+			}
+		}
+
+		if allMatch {
+			count++
+		}
+	}
+
+	return count
+}

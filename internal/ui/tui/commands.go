@@ -248,3 +248,17 @@ func fetchIPInfo(ip string) tea.Cmd {
 		return ipInfoMsg{&info, nil}
 	}
 }
+
+// rulesMsg 规则消息
+type rulesMsg []model.Rule
+
+// fetchRules 获取规则列表
+func fetchRules(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		rules, err := client.GetRules()
+		if err != nil {
+			return errMsg(err)
+		}
+		return rulesMsg(rules.Rules)
+	}
+}

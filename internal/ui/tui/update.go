@@ -61,17 +61,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleLogFilterMode(msg)
 		}
 
+		// 规则过滤模式特殊处理
+		if m.ruleFilterMode {
+			return m.handleRuleFilterMode(msg)
+		}
+
 		// 全局快捷键
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.NextPage):
-			m.currentPage = (m.currentPage + 1) % 5
+			m.currentPage = (m.currentPage + 1) % 6
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.PrevPage):
-			m.currentPage = (m.currentPage + 4) % 5
+			m.currentPage = (m.currentPage + 5) % 6
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page1):
@@ -91,6 +96,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page5):
+			m.currentPage = components.PageRules
+			return m, fetchRules(m.client)
+
+		case key.Matches(msg, keys.Page6):
 			m.currentPage = components.PageHelp
 			return m, m.onPageChange()
 
@@ -110,6 +119,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateHelpPage(msg)
 		case components.PageLogs:
 			return m.updateLogsPage(msg)
+		case components.PageRules:
+			return m.updateRulesPage(msg)
 		}
 
 	case groupsMsg:
@@ -284,6 +295,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, listenWSMessages(m.wsMsgChan)
 		}
 
+	case rulesMsg:
+		// 更新规则列表
+		m.rules = msg
+
 	case errMsg:
 		m.err = msg
 		m.testing = false
@@ -310,6 +325,9 @@ func (m Model) onPageChange() tea.Cmd {
 			listenWSMessages(m.wsMsgChan),
 			logsTick(),
 		)
+	case components.PageRules:
+		// 进入规则页面时获取规则列表
+		return fetchRules(m.client)
 	default:
 		// 离开连接/日志页面时停止WebSocket流
 		if m.wsClient != nil && m.wsClient.IsRunning() {

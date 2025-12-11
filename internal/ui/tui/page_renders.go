@@ -73,3 +73,17 @@ func (m Model) renderLogsPage() string {
 	}
 	return pages.RenderLogsPage(state)
 }
+
+// renderRulesPage 渲染规则页面
+func (m Model) renderRulesPage() string {
+	state := pages.RulesPageState{
+		Rules:        m.rules,
+		FilterText:   m.ruleFilter,
+		FilterMode:   m.ruleFilterMode,
+		SelectedRule: m.selectedRule,
+		ScrollTop:    m.ruleScrollTop,
+		Width:        m.width,
+		Height:       m.height,
+	}
+	return pages.RenderRulesPage(state)
+}
