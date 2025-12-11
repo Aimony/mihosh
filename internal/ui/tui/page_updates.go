@@ -388,3 +388,141 @@ func (m Model) updateHelpPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// 帮助页面没有特殊交互，只响应全局快捷键
 	return m, nil
 }
+
+// updateLogsPage 更新日志页面
+func (m Model) updateLogsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Up):
+		if m.selectedLog > 0 {
+			m.selectedLog--
+			// 调整滚动位置
+			if m.selectedLog < m.logScrollTop {
+				m.logScrollTop = m.selectedLog
+			}
+		}
+
+	case key.Matches(msg, keys.Down):
+		logCount := m.getFilteredLogCount()
+		if m.selectedLog < logCount-1 {
+			m.selectedLog++
+		}
+
+	case key.Matches(msg, keys.Left):
+		// 水平向左滚动
+		if m.logHScrollOffset > 0 {
+			m.logHScrollOffset -= 10
+			if m.logHScrollOffset < 0 {
+				m.logHScrollOffset = 0
+			}
+		}
+
+	case key.Matches(msg, keys.Right):
+		// 水平向右滚动
+		m.logHScrollOffset += 10
+
+	case msg.String() == "<" || msg.String() == ",":
+		// 切换到上一个日志级别
+		if m.logLevel > 0 {
+			m.logLevel--
+		}
+		m.selectedLog = 0
+		m.logScrollTop = 0
+
+	case msg.String() == ">" || msg.String() == ".":
+		// 切换到下一个日志级别
+		if m.logLevel < 4 {
+			m.logLevel++
+		}
+		m.selectedLog = 0
+		m.logScrollTop = 0
+
+	case msg.String() == "/":
+		// 进入搜索模式
+		m.logFilterMode = true
+		return m, nil
+
+	case key.Matches(msg, keys.Clear):
+		// 清空日志
+		m.logs = nil
+		m.selectedLog = 0
+		m.logScrollTop = 0
+		return m, nil
+
+	case key.Matches(msg, keys.Escape):
+		// 清除过滤
+		if m.logFilter != "" {
+			m.logFilter = ""
+			m.selectedLog = 0
+			m.logScrollTop = 0
+		}
+	}
+
+	return m, nil
+}
+
+// handleLogFilterMode 处理日志过滤输入
+func (m Model) handleLogFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Escape):
+		m.logFilterMode = false
+		return m, nil
+
+	case key.Matches(msg, keys.Enter):
+		m.logFilterMode = false
+		m.selectedLog = 0
+		m.logScrollTop = 0
+		return m, nil
+
+	case key.Matches(msg, keys.Backspace):
+		if len(m.logFilter) > 0 {
+			m.logFilter = m.logFilter[:len(m.logFilter)-1]
+		}
+
+	default:
+		input := msg.String()
+		if len(input) == 1 && input[0] >= 32 && input[0] < 127 {
+			m.logFilter += input
+		}
+	}
+
+	return m, nil
+}
+
+// getFilteredLogCount 获取过滤后的日志数量
+func (m Model) getFilteredLogCount() int {
+	if len(m.logs) == 0 {
+		return 0
+	}
+
+	count := 0
+	levelIndex := m.logLevel
+
+	for _, log := range m.logs {
+		logLevelIndex := getLogLevelIndex(log.Type)
+
+		// 只统计当前级别及更高级别的日志
+		if logLevelIndex < levelIndex {
+			continue
+		}
+
+		// 关键词过滤
+		if m.logFilter != "" && !strings.Contains(strings.ToLower(log.Payload), strings.ToLower(m.logFilter)) {
+			continue
+		}
+
+		count++
+	}
+
+	return count
+}
+
+// getLogLevelIndex 获取日志级别索引
+func getLogLevelIndex(level string) int {
+	levels := []string{"debug", "info", "warning", "error", "silent"}
+	for i, l := range levels {
+		if l == level {
+			return i
+		}
+	}
+	return 1 // 默认info
+}

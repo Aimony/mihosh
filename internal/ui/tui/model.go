@@ -55,6 +55,14 @@ type Model struct {
 	closedConnections []model.Connection          // 已关闭的连接历史（最多1000条）
 	connViewMode      int                         // 0=活跃连接, 1=历史连接
 	prevConnIDs       map[string]model.Connection // 上次推送的连接ID映射（用于检测关闭）
+	// 日志页面状态
+	logs             []model.LogEntry // 日志列表（最多保疙1000条）
+	logLevel         int              // 当前级别索引（0=debug, 1=info, 2=warning, 3=error, 4=silent）
+	logFilter        string           // 搜索关键词
+	logFilterMode    bool             // 是否处于过滤输入模式
+	selectedLog      int              // 选中的日志索引
+	logScrollTop     int              // 日志列表滚动偏移
+	logHScrollOffset int              // 日志水平滚动偏移
 }
 
 // 消息类型
@@ -90,12 +98,14 @@ type keyMap struct {
 	Page2     key.Binding
 	Page3     key.Binding
 	Page4     key.Binding
+	Page5     key.Binding
 	Escape    key.Binding
 	Save      key.Binding
 	Backspace key.Binding
 	Delete    key.Binding
 	Home      key.Binding
 	End       key.Binding
+	Clear     key.Binding
 }
 
 var keys = keyMap{
@@ -157,7 +167,11 @@ var keys = keyMap{
 	),
 	Page4: key.NewBinding(
 		key.WithKeys("4"),
-		key.WithHelp("4", "帮助"),
+		key.WithHelp("4", "日志"),
+	),
+	Page5: key.NewBinding(
+		key.WithKeys("5"),
+		key.WithHelp("5", "帮助"),
 	),
 	Escape: key.NewBinding(
 		key.WithKeys("esc"),
@@ -182,6 +196,10 @@ var keys = keyMap{
 	End: key.NewBinding(
 		key.WithKeys("end", "ctrl+e"),
 		key.WithHelp("end", "行尾"),
+	),
+	Clear: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "清空"),
 	),
 }
 
@@ -209,5 +227,6 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		chartData:   model.NewChartData(60),
 		wsClient:    wsClient,
 		wsMsgChan:   make(chan interface{}, 100), // 带缓冲的消息通道
+		logLevel:    1,                           // 默认info级别
 	}
 }

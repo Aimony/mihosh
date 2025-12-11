@@ -57,3 +57,19 @@ func (m Model) renderSettingsPage() string {
 func (m Model) renderHelpPage() string {
 	return pages.RenderHelpPage()
 }
+
+// renderLogsPage 渲染日志页面
+func (m Model) renderLogsPage() string {
+	state := pages.LogsPageState{
+		Logs:          m.logs,
+		LogLevel:      m.logLevel,
+		FilterText:    m.logFilter,
+		FilterMode:    m.logFilterMode,
+		SelectedLog:   m.selectedLog,
+		ScrollTop:     m.logScrollTop,
+		HScrollOffset: m.logHScrollOffset,
+		Width:         m.width,
+		Height:        m.height,
+	}
+	return pages.RenderLogsPage(state)
+}

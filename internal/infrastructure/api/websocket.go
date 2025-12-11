@@ -62,6 +62,12 @@ type ConnectionMeta struct {
 	ProcessPath     string `json:"processPath"`
 }
 
+// LogData 日志数据
+type LogData struct {
+	Type    string `json:"type"`    // debug, info, warning, error, silent
+	Payload string `json:"payload"` // 日志内容
+}
+
 // WSClient WebSocket客户端
 type WSClient struct {
 	baseURL         string
@@ -69,15 +75,19 @@ type WSClient struct {
 	memoryConn      *websocket.Conn
 	trafficConn     *websocket.Conn
 	connectionsConn *websocket.Conn
+	logsConn        *websocket.Conn
 
 	memoryMu      sync.Mutex
 	trafficMu     sync.Mutex
 	connectionsMu sync.Mutex
+	logsMu        sync.Mutex
 
 	memoryHandler      func(MemoryData)
 	trafficHandler     func(TrafficData)
 	connectionsHandler func(ConnectionsData)
+	logsHandler        func(LogData)
 
+	logLevel  string // 日志级别过滤
 	stopChan  chan struct{}
 	isRunning bool
 	runningMu sync.Mutex
@@ -105,6 +115,16 @@ func (c *WSClient) SetTrafficHandler(handler func(TrafficData)) {
 // SetConnectionsHandler 设置连接数据处理器
 func (c *WSClient) SetConnectionsHandler(handler func(ConnectionsData)) {
 	c.connectionsHandler = handler
+}
+
+// SetLogsHandler 设置日志数据处理器
+func (c *WSClient) SetLogsHandler(handler func(LogData)) {
+	c.logsHandler = handler
+}
+
+// SetLogLevel 设置日志级别过滤
+func (c *WSClient) SetLogLevel(level string) {
+	c.logLevel = level
 }
 
 // buildWSURL 构建WebSocket URL
@@ -146,6 +166,8 @@ func (c *WSClient) Start() error {
 	go c.connectTraffic()
 	// 启动connections连接
 	go c.connectConnections()
+	// 启动logs连接
+	go c.connectLogs()
 
 	return nil
 }
@@ -181,6 +203,13 @@ func (c *WSClient) Stop() {
 		c.connectionsConn = nil
 	}
 	c.connectionsMu.Unlock()
+
+	c.logsMu.Lock()
+	if c.logsConn != nil {
+		c.logsConn.Close()
+		c.logsConn = nil
+	}
+	c.logsMu.Unlock()
 }
 
 // IsRunning 检查是否正在运行
@@ -387,6 +416,78 @@ func (c *WSClient) readConnectionsMessages(conn *websocket.Conn) {
 
 		if c.connectionsHandler != nil {
 			c.connectionsHandler(data)
+		}
+	}
+}
+
+// connectLogs 连接logs WebSocket
+func (c *WSClient) connectLogs() {
+	// 构建logs URL，带level参数
+	level := c.logLevel
+	if level == "" {
+		level = "debug" // 使用debug级别获取所有日志，由客户端过滤
+	}
+	wsURL := c.buildWSURL("logs?level=" + level)
+	if wsURL == "" {
+		return
+	}
+
+	for {
+		select {
+		case <-c.stopChan:
+			return
+		default:
+		}
+
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			// 连接失败，等待后重试
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		c.logsMu.Lock()
+		c.logsConn = conn
+		c.logsMu.Unlock()
+
+		// 读取消息
+		c.readLogsMessages(conn)
+
+		// 连接断开，等待后重连
+		c.logsMu.Lock()
+		c.logsConn = nil
+		c.logsMu.Unlock()
+
+		select {
+		case <-c.stopChan:
+			return
+		case <-time.After(1 * time.Second):
+			// 重连
+		}
+	}
+}
+
+// readLogsMessages 读取logs消息
+func (c *WSClient) readLogsMessages(conn *websocket.Conn) {
+	for {
+		select {
+		case <-c.stopChan:
+			return
+		default:
+		}
+
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+
+		var data LogData
+		if err := json.Unmarshal(message, &data); err != nil {
+			continue
+		}
+
+		if c.logsHandler != nil {
+			c.logsHandler(data)
 		}
 	}
 }

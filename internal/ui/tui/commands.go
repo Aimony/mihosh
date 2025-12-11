@@ -58,6 +58,12 @@ type connectionsWSMsg struct {
 	data api.ConnectionsData
 }
 
+// logsWSMsg 日志WebSocket消息
+type logsWSMsg struct {
+	logType string
+	payload string
+}
+
 func fetchMemory(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		mem, err := client.GetMemory()
@@ -103,6 +109,15 @@ func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
 		wsClient.SetConnectionsHandler(func(data api.ConnectionsData) {
 			select {
 			case msgChan <- connectionsWSMsg{data: data}:
+			default:
+				// channel满了就丢弃
+			}
+		})
+
+		// 设置日志处理器
+		wsClient.SetLogsHandler(func(data api.LogData) {
+			select {
+			case msgChan <- logsWSMsg{logType: data.Type, payload: data.Payload}:
 			default:
 				// channel满了就丢弃
 			}

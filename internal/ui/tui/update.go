@@ -14,6 +14,9 @@ import (
 // connTickMsg 连接页面定时刷新消息
 type connTickMsg time.Time
 
+// logsTickMsg 日志页面定时刷新消息
+type logsTickMsg time.Time
+
 // connRefreshInterval 连接刷新间隔
 const connRefreshInterval = 1 * time.Second
 
@@ -21,6 +24,13 @@ const connRefreshInterval = 1 * time.Second
 func connTick() tea.Cmd {
 	return tea.Tick(connRefreshInterval, func(t time.Time) tea.Msg {
 		return connTickMsg(t)
+	})
+}
+
+// logsTick 创建日志页面定时器
+func logsTick() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return logsTickMsg(t)
 	})
 }
 
@@ -46,17 +56,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleEditMode(msg)
 		}
 
+		// 日志过滤模式特殊处理
+		if m.logFilterMode {
+			return m.handleLogFilterMode(msg)
+		}
+
 		// 全局快捷键
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.NextPage):
-			m.currentPage = (m.currentPage + 1) % 4
+			m.currentPage = (m.currentPage + 1) % 5
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.PrevPage):
-			m.currentPage = (m.currentPage + 3) % 4
+			m.currentPage = (m.currentPage + 4) % 5
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page1):
@@ -72,8 +87,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Page4):
+			m.currentPage = components.PageLogs
+			return m, m.onPageChange()
+
+		case key.Matches(msg, keys.Page5):
 			m.currentPage = components.PageHelp
-			return m, nil
+			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Refresh):
 			return m, m.refreshCurrentPage()
@@ -89,6 +108,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSettingsPage(msg)
 		case components.PageHelp:
 			return m.updateHelpPage(msg)
+		case components.PageLogs:
+			return m.updateLogsPage(msg)
 		}
 
 	case groupsMsg:
@@ -208,6 +229,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, connTick()
 		}
 
+	case logsTickMsg:
+		// 日志页面定时器触发：继续定时器并确保监听
+		if m.currentPage == components.PageLogs && m.wsMsgChan != nil {
+			return m, tea.Batch(logsTick(), listenWSMessages(m.wsMsgChan))
+		}
+
 	case testDoneMsg:
 		m.testing = false
 
@@ -240,6 +267,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.connIPInfo = msg.info
 		}
 
+	case logsWSMsg:
+		// 添加日志到列表
+		newLog := model.LogEntry{
+			Type:      msg.logType,
+			Payload:   msg.payload,
+			Timestamp: time.Now(),
+		}
+		m.logs = append([]model.LogEntry{newLog}, m.logs...)
+		// 限制日志最多1000条
+		if len(m.logs) > 1000 {
+			m.logs = m.logs[:1000]
+		}
+		// 继续监听WebSocket消息
+		if m.wsMsgChan != nil && (m.currentPage == components.PageConnections || m.currentPage == components.PageLogs) {
+			return m, listenWSMessages(m.wsMsgChan)
+		}
+
 	case errMsg:
 		m.err = msg
 		m.testing = false
@@ -253,14 +297,21 @@ func (m Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
-		// 进入连接页面时启动WebSocket流（connections数据由WebSocket推送）
+		// 进入连接页面时启动WebSocket流
 		return tea.Batch(
 			startWSStreams(m.wsClient, m.wsMsgChan),
 			listenWSMessages(m.wsMsgChan),
 			connTick(),
 		)
+	case components.PageLogs:
+		// 进入日志页面时启动WebSocket流和定时器
+		return tea.Batch(
+			startWSStreams(m.wsClient, m.wsMsgChan),
+			listenWSMessages(m.wsMsgChan),
+			logsTick(),
+		)
 	default:
-		// 离开连接页面时停止WebSocket流
+		// 离开连接/日志页面时停止WebSocket流
 		if m.wsClient != nil && m.wsClient.IsRunning() {
 			return stopWSStreams(m.wsClient)
 		}

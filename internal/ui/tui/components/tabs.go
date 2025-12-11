@@ -14,6 +14,7 @@ const (
 	PageNodes PageType = iota
 	PageConnections
 	PageSettings
+	PageLogs
 	PageHelp
 )
 
@@ -23,7 +24,8 @@ func RenderTabs(currentPage PageType, width int) string {
 		"[1] 节点管理",
 		"[2] 连接监控",
 		"[3] 设置",
-		"[4] 帮助",
+		"[4] 日志",
+		"[5] 帮助",
 	}
 
 	var rendered []string
