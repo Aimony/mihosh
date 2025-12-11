@@ -33,6 +33,12 @@ var ruleTypeColors = map[string]lipgloss.Color{
 	"Match":         lipgloss.Color("#FFD700"), // 黄色
 }
 
+// filteredRule 带原始索引的规则
+type filteredRule struct {
+	Index int        // 原始索引
+	Rule  model.Rule // 规则数据
+}
+
 // RulesPageState 规则页面状态
 type RulesPageState struct {
 	Rules        []model.Rule // 规则列表
@@ -98,20 +104,28 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 	return label + input + hint
 }
 
-// filterRules 过滤规则 - 支持多关键词空格分隔
-func filterRules(rules []model.Rule, filter string) []model.Rule {
+// filterRules 过滤规则 - 支持多关键词空格分隔，保留原始索引
+func filterRules(rules []model.Rule, filter string) []filteredRule {
+	var result []filteredRule
+
 	if filter == "" {
-		return rules
+		// 无过滤时返回所有规则并保留原始索引
+		for i, rule := range rules {
+			result = append(result, filteredRule{Index: i, Rule: rule})
+		}
+		return result
 	}
 
 	// 分割关键词
 	keywords := strings.Fields(strings.ToLower(filter))
 	if len(keywords) == 0 {
-		return rules
+		for i, rule := range rules {
+			result = append(result, filteredRule{Index: i, Rule: rule})
+		}
+		return result
 	}
 
-	var filtered []model.Rule
-	for _, rule := range rules {
+	for i, rule := range rules {
 		// 构建搜索文本
 		searchText := strings.ToLower(rule.Type + " " + rule.Payload + " " + rule.Proxy)
 
@@ -125,15 +139,15 @@ func filterRules(rules []model.Rule, filter string) []model.Rule {
 		}
 
 		if allMatch {
-			filtered = append(filtered, rule)
+			result = append(result, filteredRule{Index: i, Rule: rule})
 		}
 	}
 
-	return filtered
+	return result
 }
 
 // renderRuleList 渲染规则列表
-func renderRuleList(rules []model.Rule, selectedIdx, scrollTop, maxLines, width int) string {
+func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int) string {
 	if len(rules) == 0 {
 		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		return emptyStyle.Render("暂无规则")
@@ -155,8 +169,9 @@ func renderRuleList(rules []model.Rule, selectedIdx, scrollTop, maxLines, width 
 	}
 
 	for i := scrollTop; i < endIdx; i++ {
-		rule := rules[i]
-		line := renderRuleEntry(rule, i, i == selectedIdx, width)
+		fr := rules[i]
+		// 使用原始索引显示序号
+		line := renderRuleEntry(fr.Rule, fr.Index, i == selectedIdx, width)
 		lines = append(lines, line)
 	}
 
