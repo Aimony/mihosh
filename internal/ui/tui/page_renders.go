@@ -34,6 +34,7 @@ func (m Model) renderConnectionsPage() string {
 		SelectedConnection: m.connDetailSnapshot, // 使用快照
 		IPInfo:             m.connIPInfo,         // IP地理信息
 		DetailScroll:       m.connDetailScroll,   // 详情滚动偏移
+		ChartData:          m.chartData,          // 图表数据
 	}
 	return pages.RenderConnectionsPage(state)
 }

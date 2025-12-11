@@ -119,15 +119,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case connectionsMsg:
 		m.connections = msg
+		// 更新图表数据
+		if msg != nil && m.chartData != nil {
+			// 计算速度（当前总量 - 上次总量）
+			uploadSpeed := int64(0)
+			downloadSpeed := int64(0)
+			if m.lastUpload > 0 {
+				uploadSpeed = msg.UploadTotal - m.lastUpload
+				if uploadSpeed < 0 {
+					uploadSpeed = 0
+				}
+			}
+			if m.lastDownload > 0 {
+				downloadSpeed = msg.DownloadTotal - m.lastDownload
+				if downloadSpeed < 0 {
+					downloadSpeed = 0
+				}
+			}
+			m.lastUpload = msg.UploadTotal
+			m.lastDownload = msg.DownloadTotal
+
+			// 添加速度数据
+			m.chartData.AddSpeedData(uploadSpeed, downloadSpeed)
+			// 添加连接数
+			m.chartData.AddConnCountData(len(msg.Connections))
+		}
 		// 如果当前在连接页面，继续定时刷新
 		if m.currentPage == components.PageConnections {
 			return m, connTick()
 		}
 
+	case memoryMsg:
+		// 更新内存历史数据
+		if m.chartData != nil {
+			m.chartData.AddMemoryData(msg.memory)
+		}
+
 	case connTickMsg:
 		// 定时器触发：仅在连接页面时刷新
 		if m.currentPage == components.PageConnections {
-			return m, fetchConnections(m.client)
+			return m, fetchConnectionsAndMemory(m.client)
 		}
 
 	case testDoneMsg:
@@ -175,8 +206,8 @@ func (m Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
-		// 进入连接页面时启动自动刷新
-		return tea.Batch(fetchConnections(m.client), connTick())
+		// 进入连接页面时启动自动刷新（同时获取连接和内存数据）
+		return tea.Batch(fetchConnectionsAndMemory(m.client), connTick())
 	}
 	return nil
 }
@@ -187,7 +218,7 @@ func (m Model) refreshCurrentPage() tea.Cmd {
 	case components.PageNodes:
 		return tea.Batch(fetchGroups(m.client), fetchProxies(m.client))
 	case components.PageConnections:
-		return fetchConnections(m.client)
+		return fetchConnectionsAndMemory(m.client)
 	case components.PageSettings:
 		cfg, _ := m.configSvc.LoadConfig()
 		m.config = cfg

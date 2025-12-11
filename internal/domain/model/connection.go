@@ -54,3 +54,9 @@ type Traffic struct {
 	Up   int64 `json:"up"`
 	Down int64 `json:"down"`
 }
+
+// MemoryResponse 内存信息响应
+type MemoryResponse struct {
+	Inuse   int64 `json:"inuse"`   // 当前使用的内存（字节）
+	OSLimit int64 `json:"oslimit"` // 系统限制
+}

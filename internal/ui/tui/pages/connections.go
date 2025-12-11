@@ -8,6 +8,7 @@ import (
 
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/ui/styles"
+	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -25,6 +26,8 @@ type ConnectionsPageState struct {
 	SelectedConnection *model.Connection // 选中的连接
 	IPInfo             *model.IPInfo     // 目标IP地理信息
 	DetailScroll       int               // 详情页面滚动偏移
+	// 图表数据
+	ChartData *model.ChartData
 }
 
 // 表格列宽配置
@@ -155,6 +158,14 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	var content []string
 	content = append(content, headerStyle.Render("连接监控"))
 	content = append(content, "")
+
+	// 渲染监控图表区域
+	chartsSection := renderChartsSection(state, state.Width)
+	if chartsSection != "" {
+		content = append(content, chartsSection)
+		content = append(content, "")
+	}
+
 	content = append(content, stats)
 	if filterLine != "" {
 		content = append(content, filterLine)
@@ -441,4 +452,97 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// renderChartsSection 渲染监控图表区域
+func renderChartsSection(state ConnectionsPageState, width int) string {
+	if state.ChartData == nil {
+		return ""
+	}
+
+	// 计算每个图表的宽度（三个并排显示）
+	chartWidth := (width - 8) / 3
+	if chartWidth < 25 {
+		chartWidth = 25
+	}
+	if chartWidth > 45 {
+		chartWidth = 45
+	}
+
+	// 速度图表配置
+	speedConfig := components.SparklineConfig{
+		Title:    "上传/下载速度",
+		Width:    chartWidth,
+		Height:   4,
+		Color1:   lipgloss.Color("#00BFFF"), // 蓝色 - 上传
+		Color2:   lipgloss.Color("#9370DB"), // 紫色 - 下载
+		Label1:   "上传速度",
+		Label2:   "下载速度",
+		MinValue: 1024, // 最小 1KB/s
+		FormatFunc: func(v int64) string {
+			return formatSpeed(v)
+		},
+	}
+
+	// 内存图表配置
+	memoryConfig := components.SparklineConfig{
+		Title:    "内存使用",
+		Width:    chartWidth,
+		Height:   4,
+		Color1:   lipgloss.Color("#00FF7F"), // 绿色
+		Label1:   "内存使用",
+		MinValue: 1024 * 1024, // 最小 1MB
+		FormatFunc: func(v int64) string {
+			return formatMemory(v)
+		},
+	}
+
+	// 连接数图表配置
+	connConfig := components.SparklineConfig{
+		Title:    "连接",
+		Width:    chartWidth,
+		Height:   4,
+		Color1:   lipgloss.Color("#FFD700"), // 金色
+		Label1:   "连接",
+		MinValue: 0, // 连接数不设最小值，自动适应
+		FormatFunc: func(v int64) string {
+			return fmt.Sprintf("%d", v)
+		},
+	}
+
+	// 渲染三个图表
+	speedChart := components.RenderDualSparkline(
+		state.ChartData.SpeedUpHistory,
+		state.ChartData.SpeedDownHistory,
+		speedConfig,
+	)
+	memoryChart := components.RenderSparkline(state.ChartData.MemoryHistory, memoryConfig)
+	connChart := components.RenderIntSparkline(state.ChartData.ConnCountHistory, connConfig)
+
+	// 横向拼接三个图表
+	return lipgloss.JoinHorizontal(lipgloss.Top, speedChart, "  ", memoryChart, "  ", connChart)
+}
+
+// formatSpeed 格式化速度
+func formatSpeed(bytesPerSec int64) string {
+	if bytesPerSec < 1024 {
+		return fmt.Sprintf("%d B/s", bytesPerSec)
+	} else if bytesPerSec < 1024*1024 {
+		return fmt.Sprintf("%.1f KB/s", float64(bytesPerSec)/1024)
+	} else {
+		return fmt.Sprintf("%.1f MB/s", float64(bytesPerSec)/(1024*1024))
+	}
+}
+
+// formatMemory 格式化内存
+func formatMemory(bytes int64) string {
+	if bytes == 0 {
+		return "0 B"
+	} else if bytes < 1024*1024 {
+		return fmt.Sprintf("%.0f KB", float64(bytes)/1024)
+	} else if bytes < 1024*1024*1024 {
+		return fmt.Sprintf("%.0f MB", float64(bytes)/(1024*1024))
+	} else {
+		return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
+	}
 }

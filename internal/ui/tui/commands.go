@@ -42,6 +42,27 @@ func fetchConnections(client *api.Client) tea.Cmd {
 	}
 }
 
+// memoryMsg 内存消息
+type memoryMsg struct {
+	memory int64
+}
+
+func fetchMemory(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		mem, err := client.GetMemory()
+		if err != nil {
+			// 内存获取失败不报错，返回0
+			return memoryMsg{memory: 0}
+		}
+		return memoryMsg{memory: mem.Inuse}
+	}
+}
+
+// fetchConnectionsAndMemory 同时获取连接和内存数据
+func fetchConnectionsAndMemory(client *api.Client) tea.Cmd {
+	return tea.Batch(fetchConnections(client), fetchMemory(client))
+}
+
 func selectProxy(client *api.Client, group, proxy string) tea.Cmd {
 	return func() tea.Msg {
 		if err := client.SelectProxy(group, proxy); err != nil {

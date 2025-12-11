@@ -44,6 +44,10 @@ type Model struct {
 	connDetailSnapshot *model.Connection // 详情模式下的连接快照
 	connIPInfo         *model.IPInfo     // 目标IP的地理信息
 	connDetailScroll   int               // 详情页面滚动偏移量
+	// 图表数据
+	chartData    *model.ChartData // 图表历史数据
+	lastUpload   int64            // 上次上传总量（用于计算速度）
+	lastDownload int64            // 上次下载总量
 }
 
 // 消息类型
@@ -192,5 +196,6 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		testURL:     testURL,
 		timeout:     timeout,
 		currentPage: components.PageNodes,
+		chartData:   model.NewChartData(60),
 	}
 }
