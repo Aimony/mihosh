@@ -49,7 +49,7 @@ const (
 func RenderConnectionsPage(state ConnectionsPageState) string {
 	// 详情模式：渲染连接详情
 	if state.DetailMode && state.SelectedConnection != nil {
-		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Width, state.Height, state.DetailScroll)
+		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Height, state.DetailScroll)
 	}
 
 	// 样式定义
@@ -161,7 +161,7 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 				prefix = "▶ "
 			}
 
-			row := renderConnectionRow(conn, rowStyle, prefix, state.Width)
+			row := renderConnectionRow(conn, rowStyle, prefix)
 			rows = append(rows, row)
 		}
 
@@ -227,7 +227,7 @@ func renderTableHeader(style lipgloss.Style) string {
 }
 
 // renderConnectionRow 渲染单行连接
-func renderConnectionRow(conn model.Connection, style lipgloss.Style, prefix string, width int) string {
+func renderConnectionRow(conn model.Connection, style lipgloss.Style, prefix string) string {
 	// 主机
 	host := conn.Metadata.Host
 	if host == "" {
@@ -301,7 +301,7 @@ func truncateString(s string, maxWidth int) string {
 }
 
 // renderConnectionDetail 渲染连接详情（JSON格式，支持滚动）
-func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, width, height, scrollTop int) string {
+func renderConnectionDetail(conn *model.Connection, ipInfo *model.IPInfo, height, scrollTop int) string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(styles.ColorPrimary)
@@ -475,13 +475,6 @@ func formatDuration(startStr string) string {
 		return fmt.Sprintf("%dm", int(duration.Minutes()))
 	}
 	return fmt.Sprintf("%dh%dm", int(duration.Hours()), int(duration.Minutes())%60)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // renderChartsSection 渲染监控图表区域

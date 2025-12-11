@@ -72,11 +72,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.NextPage):
-			m.currentPage = (m.currentPage + 1) % 6
+			m.currentPage = (m.currentPage + 1) % components.PageCount
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.PrevPage):
-			m.currentPage = (m.currentPage + 5) % 6
+			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
 			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page1):

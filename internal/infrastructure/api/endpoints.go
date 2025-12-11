@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/aimony/mihosh/internal/domain/model"
 )
@@ -46,7 +47,8 @@ func (c *Client) SelectProxy(group, proxy string) error {
 
 // TestProxyDelay 测试单个代理延迟
 func (c *Client) TestProxyDelay(name, testURL string, timeout int) (int, error) {
-	path := fmt.Sprintf("/proxies/%s/delay?url=%s&timeout=%d", name, testURL, timeout)
+	path := fmt.Sprintf("/proxies/%s/delay?url=%s&timeout=%d",
+		url.PathEscape(name), url.QueryEscape(testURL), timeout)
 	data, err := c.DoRequest("GET", path, nil)
 	if err != nil {
 		return 0, err

@@ -56,7 +56,7 @@ type Model struct {
 	connViewMode      int                         // 0=活跃连接, 1=历史连接
 	prevConnIDs       map[string]model.Connection // 上次推送的连接ID映射（用于检测关闭）
 	// 日志页面状态
-	logs             []model.LogEntry // 日志列表（最多保疙1000条）
+	logs             []model.LogEntry // 日志列表（最多保留1000条）
 	logLevel         int              // 当前级别索引（0=debug, 1=info, 2=warning, 3=error, 4=silent）
 	logFilter        string           // 搜索关键词
 	logFilterMode    bool             // 是否处于过滤输入模式
@@ -216,7 +216,11 @@ var keys = keyMap{
 
 // NewModel 创建新的 TUI 模型
 func NewModel(client *api.Client, testURL string, timeout int) Model {
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil || cfg == nil {
+		// 配置加载失败时使用默认配置
+		cfg = &config.DefaultConfig
+	}
 
 	// 创建服务实例
 	proxySvc := service.NewProxyService(client, testURL, timeout)

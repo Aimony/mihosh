@@ -13,7 +13,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mihomo",
+	Use:   "mihosh",
 	Short: "Mihosh - Mihomo 终端管理工具",
 	Long:  `一个功能完整的 mihomo 终端命令行工具，支持节点切换、测速等操作`,
 	Run: func(cmd *cobra.Command, args []string) {

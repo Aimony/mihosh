@@ -116,13 +116,15 @@ func renderLogSearchBox(filterText string, filterMode bool) string {
 	return label + input
 }
 
-// filterLogs 过滤日志
+// filterLogs 过滤日志（显示选定级别及更高级别的日志）
 func filterLogs(logs []model.LogEntry, level, filter string) []model.LogEntry {
 	var filtered []model.LogEntry
+	levelIndex := getLevelIndex(level)
 
 	for _, log := range logs {
-		// 只显示选定级别的日志
-		if log.Type != level {
+		// 只显示选定级别及更高级别的日志
+		logLevelIndex := getLevelIndex(log.Type)
+		if logLevelIndex < levelIndex {
 			continue
 		}
 

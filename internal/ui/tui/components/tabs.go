@@ -17,6 +17,7 @@ const (
 	PageRules
 	PageHelp
 	PageSettings
+	PageCount // 页面总数，必须放在最后
 )
 
 // RenderTabs 渲染标签栏
