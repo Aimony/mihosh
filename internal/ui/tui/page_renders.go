@@ -35,6 +35,8 @@ func (m Model) renderConnectionsPage() string {
 		IPInfo:             m.connIPInfo,         // IP地理信息
 		DetailScroll:       m.connDetailScroll,   // 详情滚动偏移
 		ChartData:          m.chartData,          // 图表数据
+		ViewMode:           m.connViewMode,       // 0=活跃, 1=历史
+		ClosedConnections:  m.closedConnections,  // 历史连接
 	}
 	return pages.RenderConnectionsPage(state)
 }

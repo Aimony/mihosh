@@ -28,6 +28,9 @@ type ConnectionsPageState struct {
 	DetailScroll       int               // 详情页面滚动偏移
 	// 图表数据
 	ChartData *model.ChartData
+	// 视图模式
+	ViewMode          int                // 0=活跃连接, 1=历史连接
+	ClosedConnections []model.Connection // 已关闭的连接历史
 }
 
 // 表格列宽配置
@@ -44,10 +47,6 @@ const (
 
 // RenderConnectionsPage 渲染连接监控页面
 func RenderConnectionsPage(state ConnectionsPageState) string {
-	if state.Connections == nil {
-		return "正在加载连接信息..."
-	}
-
 	// 详情模式：渲染连接详情
 	if state.DetailMode && state.SelectedConnection != nil {
 		return renderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Width, state.Height, state.DetailScroll)
@@ -68,16 +67,40 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	dimStyle := lipgloss.NewStyle().
 		Foreground(styles.ColorSecondary)
 
+	// 根据视图模式选择数据源
+	var connections []model.Connection
+	var viewModeLabel string
+	if state.ViewMode == 0 {
+		// 活跃连接
+		if state.Connections == nil {
+			return "正在加载连接信息..."
+		}
+		connections = state.Connections.Connections
+		viewModeLabel = headerStyle.Render("● 活跃连接") + dimStyle.Render("  历史连接")
+	} else {
+		// 历史连接
+		connections = state.ClosedConnections
+		viewModeLabel = dimStyle.Render("活跃连接  ") + headerStyle.Render("● 历史连接")
+	}
+
 	// 过滤连接
-	filteredConns := filterConnections(state.Connections.Connections, state.FilterText)
+	filteredConns := filterConnections(connections, state.FilterText)
 
 	// 统计信息
-	stats := fmt.Sprintf(
-		"活跃: %s | 上传: %s | 下载: %s",
-		headerStyle.Render(fmt.Sprintf("%d", len(filteredConns))),
-		headerStyle.Render(utils.FormatBytes(state.Connections.UploadTotal)),
-		headerStyle.Render(utils.FormatBytes(state.Connections.DownloadTotal)),
-	)
+	var stats string
+	if state.ViewMode == 0 && state.Connections != nil {
+		stats = fmt.Sprintf(
+			"活跃: %s | 上传: %s | 下载: %s",
+			headerStyle.Render(fmt.Sprintf("%d", len(filteredConns))),
+			headerStyle.Render(utils.FormatBytes(state.Connections.UploadTotal)),
+			headerStyle.Render(utils.FormatBytes(state.Connections.DownloadTotal)),
+		)
+	} else {
+		stats = fmt.Sprintf(
+			"历史: %s 条记录",
+			headerStyle.Render(fmt.Sprintf("%d", len(filteredConns))),
+		)
+	}
 
 	// 过滤输入框
 	filterLine := ""
@@ -152,18 +175,25 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	}
 
 	// 帮助提示
-	helpText := dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [r]刷新")
+	var helpText string
+	if state.ViewMode == 0 {
+		helpText = dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [h]历史 [r]刷新")
+	} else {
+		helpText = dimStyle.Render("[↑↓]选择 [Enter]详情 [/]搜索 [h]活跃")
+	}
 
 	// 组装页面
 	var content []string
-	content = append(content, headerStyle.Render("连接监控"))
+	content = append(content, headerStyle.Render("连接监控")+"  "+viewModeLabel)
 	content = append(content, "")
 
-	// 渲染监控图表区域
-	chartsSection := renderChartsSection(state, state.Width)
-	if chartsSection != "" {
-		content = append(content, chartsSection)
-		content = append(content, "")
+	// 渲染监控图表区域（仅在活跃连接视图显示）
+	if state.ViewMode == 0 {
+		chartsSection := renderChartsSection(state, state.Width)
+		if chartsSection != "" {
+			content = append(content, chartsSection)
+			content = append(content, "")
+		}
 	}
 
 	content = append(content, stats)

@@ -51,6 +51,10 @@ type Model struct {
 	// WebSocket客户端
 	wsClient  *api.WSClient    // WebSocket流客户端
 	wsMsgChan chan interface{} // WebSocket消息通道
+	// 历史连接
+	closedConnections []model.Connection          // 已关闭的连接历史（最多1000条）
+	connViewMode      int                         // 0=活跃连接, 1=历史连接
+	prevConnIDs       map[string]model.Connection // 上次推送的连接ID映射（用于检测关闭）
 }
 
 // 消息类型

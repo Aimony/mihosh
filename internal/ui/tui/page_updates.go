@@ -146,6 +146,13 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.connFilterMode = true
 		return m, nil
 
+	case msg.String() == "h":
+		// 切换视图模式：活跃连接 <-> 历史连接
+		m.connViewMode = (m.connViewMode + 1) % 2
+		m.selectedConn = 0
+		m.connScrollTop = 0
+		return m, nil
+
 	case key.Matches(msg, keys.Escape):
 		// 清除过滤
 		if m.connFilter != "" {
@@ -188,16 +195,26 @@ func (m Model) handleConnFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // getFilteredConnCount 获取过滤后的连接数量
 func (m Model) getFilteredConnCount() int {
-	if m.connections == nil {
-		return 0
+	// 根据视图模式选择数据源
+	var connections []model.Connection
+	if m.connViewMode == 0 {
+		// 活跃连接
+		if m.connections == nil {
+			return 0
+		}
+		connections = m.connections.Connections
+	} else {
+		// 历史连接
+		connections = m.closedConnections
 	}
+
 	if m.connFilter == "" {
-		return len(m.connections.Connections)
+		return len(connections)
 	}
 	// 简单计数
 	count := 0
 	filter := m.connFilter
-	for _, conn := range m.connections.Connections {
+	for _, conn := range connections {
 		if containsFilter(conn, filter) {
 			count++
 		}
@@ -207,23 +224,35 @@ func (m Model) getFilteredConnCount() int {
 
 // getSelectedConnection 获取当前选中的连接
 func (m Model) getSelectedConnection() *model.Connection {
-	if m.connections == nil || len(m.connections.Connections) == 0 {
-		return nil
+	// 根据视图模式选择数据源
+	var connections []model.Connection
+	if m.connViewMode == 0 {
+		// 活跃连接
+		if m.connections == nil || len(m.connections.Connections) == 0 {
+			return nil
+		}
+		connections = m.connections.Connections
+	} else {
+		// 历史连接
+		if len(m.closedConnections) == 0 {
+			return nil
+		}
+		connections = m.closedConnections
 	}
 
 	if m.connFilter == "" {
-		if m.selectedConn >= 0 && m.selectedConn < len(m.connections.Connections) {
-			return &m.connections.Connections[m.selectedConn]
+		if m.selectedConn >= 0 && m.selectedConn < len(connections) {
+			return &connections[m.selectedConn]
 		}
 		return nil
 	}
 
 	// 过滤后的列表中查找
 	idx := 0
-	for i := range m.connections.Connections {
-		if containsFilter(m.connections.Connections[i], m.connFilter) {
+	for i := range connections {
+		if containsFilter(connections[i], m.connFilter) {
 			if idx == m.selectedConn {
-				return &m.connections.Connections[i]
+				return &connections[i]
 			}
 			idx++
 		}

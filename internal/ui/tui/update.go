@@ -147,6 +147,50 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case connectionsWSMsg:
+		// 检测已关闭的连接
+		currentConnIDs := make(map[string]model.Connection)
+		for _, conn := range msg.data.Connections {
+			currentConnIDs[conn.ID] = model.Connection{
+				ID:            conn.ID,
+				Upload:        conn.Upload,
+				Download:      conn.Download,
+				Start:         conn.Start,
+				Chains:        conn.Chains,
+				Rule:          conn.Rule,
+				RulePayload:   conn.RulePayload,
+				DownloadSpeed: conn.DownloadSpeed,
+				UploadSpeed:   conn.UploadSpeed,
+				Metadata: model.Metadata{
+					Network:         conn.Metadata.Network,
+					Type:            conn.Metadata.Type,
+					SourceIP:        conn.Metadata.SourceIP,
+					DestinationIP:   conn.Metadata.DestinationIP,
+					SourcePort:      conn.Metadata.SourcePort,
+					DestinationPort: conn.Metadata.DestinationPort,
+					Host:            conn.Metadata.Host,
+					Process:         conn.Metadata.Process,
+					ProcessPath:     conn.Metadata.ProcessPath,
+				},
+			}
+		}
+
+		// 找出已关闭的连接（在上次存在但这次不存在）
+		if m.prevConnIDs != nil {
+			for id, conn := range m.prevConnIDs {
+				if _, exists := currentConnIDs[id]; !exists {
+					// 这个连接已关闭，加入历史记录
+					m.closedConnections = append([]model.Connection{conn}, m.closedConnections...)
+					// 限制历史记录最多1000条
+					if len(m.closedConnections) > 1000 {
+						m.closedConnections = m.closedConnections[:1000]
+					}
+				}
+			}
+		}
+
+		// 更新上次连接ID映射
+		m.prevConnIDs = currentConnIDs
+
 		// 更新连接数据（转换为model.ConnectionsResponse）
 		m.connections = convertToConnectionsResponse(msg.data)
 		// 更新连接数图表
