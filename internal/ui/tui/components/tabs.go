@@ -13,10 +13,10 @@ type PageType int
 const (
 	PageNodes PageType = iota
 	PageConnections
-	PageSettings
 	PageLogs
 	PageRules
 	PageHelp
+	PageSettings
 )
 
 // RenderTabs 渲染标签栏
@@ -24,10 +24,10 @@ func RenderTabs(currentPage PageType, width int) string {
 	tabs := []string{
 		"[1] 节点管理",
 		"[2] 连接监控",
-		"[3] 设置",
-		"[4] 日志",
-		"[5] 规则",
-		"[6] 帮助",
+		"[3] 日志",
+		"[4] 规则",
+		"[5] 帮助",
+		"[6] 设置",
 	}
 
 	var rendered []string

@@ -170,19 +170,19 @@ var keys = keyMap{
 	),
 	Page3: key.NewBinding(
 		key.WithKeys("3"),
-		key.WithHelp("3", "设置"),
+		key.WithHelp("3", "日志"),
 	),
 	Page4: key.NewBinding(
 		key.WithKeys("4"),
-		key.WithHelp("4", "日志"),
+		key.WithHelp("4", "规则"),
 	),
 	Page5: key.NewBinding(
 		key.WithKeys("5"),
-		key.WithHelp("5", "规则"),
+		key.WithHelp("5", "帮助"),
 	),
 	Page6: key.NewBinding(
 		key.WithKeys("6"),
-		key.WithHelp("6", "帮助"),
+		key.WithHelp("6", "设置"),
 	),
 	Escape: key.NewBinding(
 		key.WithKeys("esc"),

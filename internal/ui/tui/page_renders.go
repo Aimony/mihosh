@@ -55,7 +55,7 @@ func (m Model) renderSettingsPage() string {
 
 // renderHelpPage 渲染帮助页面
 func (m Model) renderHelpPage() string {
-	return pages.RenderHelpPage()
+	return pages.RenderHelpPage(m.width)
 }
 
 // renderLogsPage 渲染日志页面

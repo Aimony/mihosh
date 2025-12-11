@@ -88,20 +88,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, fetchConnections(m.client)
 
 		case key.Matches(msg, keys.Page3):
-			m.currentPage = components.PageSettings
-			return m, nil
-
-		case key.Matches(msg, keys.Page4):
 			m.currentPage = components.PageLogs
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page5):
+		case key.Matches(msg, keys.Page4):
 			m.currentPage = components.PageRules
 			return m, fetchRules(m.client)
 
-		case key.Matches(msg, keys.Page6):
+		case key.Matches(msg, keys.Page5):
 			m.currentPage = components.PageHelp
 			return m, m.onPageChange()
+
+		case key.Matches(msg, keys.Page6):
+			m.currentPage = components.PageSettings
+			return m, nil
 
 		case key.Matches(msg, keys.Refresh):
 			return m, m.refreshCurrentPage()
