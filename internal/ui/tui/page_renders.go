@@ -41,6 +41,8 @@ func (m Model) renderConnectionsPage() string {
 		ChartData:          m.chartData,          // 图表数据
 		ViewMode:           m.connViewMode,       // 0=活跃, 1=历史
 		ClosedConnections:  m.closedConnections,  // 历史连接
+		SiteTests:          m.siteTests,          // 网站测速数据
+		SelectedSiteTest:   m.selectedSiteTest,   // 选中的网站索引
 	}
 	return pages.RenderConnectionsPage(state)
 }

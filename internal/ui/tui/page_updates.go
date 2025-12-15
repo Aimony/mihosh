@@ -172,6 +172,35 @@ func (m Model) updateConnectionsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.connScrollTop = 0
 		return m, nil
 
+	case msg.String() == "s":
+		// 测试选中的网站
+		if len(m.siteTests) > 0 && m.selectedSiteTest >= 0 && m.selectedSiteTest < len(m.siteTests) {
+			site := m.siteTests[m.selectedSiteTest]
+			m.siteTests[m.selectedSiteTest].Testing = true
+			return m, testSiteDelay(m.proxyAddr, site.Name, site.URL, m.timeout)
+		}
+
+	case msg.String() == "S":
+		// 测试所有网站
+		if len(m.siteTests) > 0 {
+			for i := range m.siteTests {
+				m.siteTests[i].Testing = true
+			}
+			return m, testAllSites(m.proxyAddr, m.siteTests, m.timeout)
+		}
+
+	case key.Matches(msg, keys.Left):
+		// 选择上一个网站
+		if m.selectedSiteTest > 0 {
+			m.selectedSiteTest--
+		}
+
+	case key.Matches(msg, keys.Right):
+		// 选择下一个网站
+		if m.selectedSiteTest < len(m.siteTests)-1 {
+			m.selectedSiteTest++
+		}
+
 	case key.Matches(msg, keys.Escape):
 		// 清除过滤
 		if m.connFilter != "" {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -260,5 +261,73 @@ func fetchRules(client *api.Client) tea.Cmd {
 			return errMsg(err)
 		}
 		return rulesMsg(rules.Rules)
+	}
+}
+
+// siteTestMsg 网站测速结果消息
+type siteTestMsg struct {
+	name  string
+	delay int
+	err   error
+}
+
+// testSiteDelay 测试单个网站延迟（通过代理）
+func testSiteDelay(proxyAddr string, siteName string, siteURL string, timeout int) tea.Cmd {
+	return func() tea.Msg {
+		// 创建带代理的HTTP客户端
+		client := &http.Client{
+			Timeout: time.Duration(timeout) * time.Millisecond,
+		}
+
+		// 如果配置了代理地址，使用代理
+		if proxyAddr != "" {
+			proxyURL, err := parseProxyURL(proxyAddr)
+			if err == nil {
+				client.Transport = &http.Transport{
+					Proxy: http.ProxyURL(proxyURL),
+				}
+			}
+		}
+
+		start := time.Now()
+		req, err := http.NewRequest("GET", siteURL, nil)
+		if err != nil {
+			return siteTestMsg{name: siteName, delay: 0, err: err}
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return siteTestMsg{name: siteName, delay: 0, err: err}
+		}
+		defer resp.Body.Close()
+
+		delay := int(time.Since(start).Milliseconds())
+		return siteTestMsg{name: siteName, delay: delay, err: nil}
+	}
+}
+
+// parseProxyURL 解析代理地址
+func parseProxyURL(addr string) (*url.URL, error) {
+	// 确保有协议前缀
+	if !hasScheme(addr) {
+		addr = "http://" + addr
+	}
+	return url.Parse(addr)
+}
+
+// hasScheme 检查地址是否有协议前缀
+func hasScheme(addr string) bool {
+	return len(addr) > 7 && (addr[:7] == "http://" || addr[:8] == "https://" || addr[:9] == "socks5://")
+}
+
+// testAllSites 批量测试所有网站
+func testAllSites(proxyAddr string, sites []model.SiteTest, timeout int) tea.Cmd {
+	return func() tea.Msg {
+		var cmds []tea.Cmd
+		for _, site := range sites {
+			cmds = append(cmds, testSiteDelay(proxyAddr, site.Name, site.URL, timeout))
+		}
+		return tea.Batch(cmds...)()
 	}
 }

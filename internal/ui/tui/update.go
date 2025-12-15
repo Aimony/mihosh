@@ -299,6 +299,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 更新规则列表
 		m.rules = msg
 
+	case siteTestMsg:
+		// 更新网站测速结果
+		for i := range m.siteTests {
+			if m.siteTests[i].Name == msg.name {
+				m.siteTests[i].Testing = false
+				if msg.err != nil {
+					m.siteTests[i].Delay = 0
+					m.siteTests[i].Error = "timeout"
+				} else {
+					m.siteTests[i].Delay = msg.delay
+					m.siteTests[i].Error = ""
+				}
+				break
+			}
+		}
+
 	case errMsg:
 		m.err = msg
 		m.testing = false

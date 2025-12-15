@@ -31,6 +31,9 @@ type ConnectionsPageState struct {
 	// 视图模式
 	ViewMode          int                // 0=活跃连接, 1=历史连接
 	ClosedConnections []model.Connection // 已关闭的连接历史
+	// 网站测速
+	SiteTests        []model.SiteTest // 网站测试数据
+	SelectedSiteTest int              // 选中的网站索引
 }
 
 // 表格列宽配置
@@ -113,13 +116,28 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	// 表头
 	tableHeader := renderTableHeader(headerStyle)
 
-	// 计算可显示的行数
-	maxDisplay := 15
-	if state.Height > 0 {
-		maxDisplay = (state.Height - 10) // 减去标题、统计、表头、帮助等行
-		if maxDisplay < 5 {
-			maxDisplay = 5
+	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Footer + Help)
+	usedLines := 10 // 基础占用行数
+
+	// 加上图表和测试区域的行数
+	if state.ViewMode == 0 {
+		if state.ChartData != nil {
+			usedLines += 6 // 图表高度(估计) + 间距
 		}
+		if len(state.SiteTests) > 0 {
+			usedLines += 8 // 测试区域高度(Title + Space + Card + Space)
+		}
+	}
+
+	// 加上过滤器行数
+	if filterLine != "" {
+		usedLines++
+	}
+
+	// 计算列表可显示的行数
+	maxDisplay := state.Height - usedLines
+	if maxDisplay < 5 {
+		maxDisplay = 5
 	}
 
 	// 连接列表
@@ -177,7 +195,7 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	// 帮助提示
 	var helpText string
 	if state.ViewMode == 0 {
-		helpText = dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [h]历史 [r]刷新")
+		helpText = dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [h]历史 [s]测速 [S]全测 [r]刷新")
 	} else {
 		helpText = dimStyle.Render("[↑↓]选择 [Enter]详情 [/]搜索 [h]活跃")
 	}
@@ -192,6 +210,12 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 		chartsSection := renderChartsSection(state, state.Width)
 		if chartsSection != "" {
 			content = append(content, chartsSection)
+			content = append(content, "")
+		}
+		// 渲染网站测速区域
+		if len(state.SiteTests) > 0 {
+			siteTestSection := renderSiteTestSection(state.SiteTests, state.SelectedSiteTest, state.Width)
+			content = append(content, siteTestSection)
 			content = append(content, "")
 		}
 	}
@@ -574,4 +598,106 @@ func formatMemory(bytes int64) string {
 	} else {
 		return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
 	}
+}
+
+// renderSiteTestSection 渲染网站测速区域
+func renderSiteTestSection(siteTests []model.SiteTest, selectedIdx int, width int) string {
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.ColorPrimary)
+
+	dimStyle := lipgloss.NewStyle().
+		Foreground(styles.ColorSecondary)
+
+	// 标题行
+	title := headerStyle.Render("⚡ 网站测试")
+	testAllBtn := dimStyle.Render("[S]测试全部")
+	titleLine := title + "  " + testAllBtn
+
+	// 计算每个卡片宽度（横向排列4个）
+	cardWidth := (width - 10) / 4
+	if cardWidth < 12 {
+		cardWidth = 12
+	}
+	if cardWidth > 20 {
+		cardWidth = 20
+	}
+
+	// 渲染网站卡片
+	var cards []string
+	for i, site := range siteTests {
+		card := renderSiteCard(site, i == selectedIdx, cardWidth)
+		cards = append(cards, card)
+	}
+
+	// 横向拼接卡片
+	cardsRow := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+
+	return lipgloss.JoinVertical(lipgloss.Left, titleLine, "", cardsRow)
+}
+
+// renderSiteCard 渲染单个网站测速卡片
+func renderSiteCard(site model.SiteTest, selected bool, width int) string {
+	// 卡片样式
+	cardStyle := lipgloss.NewStyle().
+		Width(width).
+		Padding(0, 1).
+		MarginRight(1)
+
+	if selected {
+		cardStyle = cardStyle.
+			Background(lipgloss.Color("#333")).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(styles.ColorPrimary)
+	} else {
+		cardStyle = cardStyle.
+			Background(lipgloss.Color("#1a1a2e")).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#444"))
+	}
+
+	// 图标样式
+	iconStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFF"))
+
+	// 名称样式
+	nameStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#CCC")).
+		Width(width - 4).
+		Align(lipgloss.Center)
+
+	// 延迟样式
+	var delayStr string
+	var delayStyle lipgloss.Style
+
+	if site.Testing {
+		delayStr = "测试中..."
+		delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700"))
+	} else if site.Error != "" {
+		delayStr = site.Error
+		delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
+	} else if site.Delay > 0 {
+		delayStr = fmt.Sprintf("%dms", site.Delay)
+		// 根据延迟着色
+		if site.Delay < 500 {
+			delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF7F")) // 绿色
+		} else if site.Delay < 1000 {
+			delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700")) // 黄色
+		} else {
+			delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")) // 红色
+		}
+	} else {
+		delayStr = "-"
+		delayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#666"))
+	}
+	delayStyle = delayStyle.Width(width - 4).Align(lipgloss.Center)
+
+	// 组装卡片内容
+	icon := iconStyle.Render(site.Icon)
+	name := nameStyle.Render(site.Name)
+	delay := delayStyle.Render(delayStr)
+
+	content := lipgloss.JoinVertical(lipgloss.Center, icon, name, delay)
+	return cardStyle.Render(content)
 }

@@ -73,6 +73,10 @@ type Model struct {
 	ruleFilterMode bool         // 是否处于过滤输入模式
 	selectedRule   int          // 选中的规则索引
 	ruleScrollTop  int          // 规则列表滚动偏移
+	// 网站测速状态
+	siteTests        []model.SiteTest // 网站测试列表
+	selectedSiteTest int              // 选中的网站索引
+	proxyAddr        string           // 代理地址（用于网站测速）
 }
 
 // 消息类型
@@ -247,5 +251,7 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		wsClient:    wsClient,
 		wsMsgChan:   make(chan interface{}, 100), // 带缓冲的消息通道
 		logLevel:    1,                           // 默认info级别
+		siteTests:   model.DefaultSiteTests(),    // 初始化网站测试列表
+		proxyAddr:   cfg.ProxyAddress,            // 使用配置的代理地址
 	}
 }
