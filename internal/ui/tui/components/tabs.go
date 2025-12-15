@@ -15,7 +15,6 @@ const (
 	PageConnections
 	PageLogs
 	PageRules
-	PageHelp
 	PageSettings
 	PageCount // 页面总数，必须放在最后
 )
@@ -27,8 +26,7 @@ func RenderTabs(currentPage PageType, width int) string {
 		"[2] 连接监控",
 		"[3] 日志",
 		"[4] 规则",
-		"[5] 帮助",
-		"[6] 设置",
+		"[5] 设置",
 	}
 
 	var rendered []string

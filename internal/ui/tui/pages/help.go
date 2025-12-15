@@ -37,7 +37,8 @@ func RenderHelpPage(width int) string {
 	// 全局快捷键卡片
 	globalKeys := lipgloss.JoinVertical(lipgloss.Left,
 		sectionStyle.Render("🌐 全局快捷键"),
-		renderKey("1-6", "快速跳转页面"),
+		renderKey("1-5", "快速跳转页面"),
+		renderKey("?", "显示/隐藏帮助"),
 		renderKey("Tab", "下一页"),
 		renderKey("Shift+Tab", "上一页"),
 		renderKey("r", "刷新当前页面"),
@@ -86,7 +87,7 @@ func RenderHelpPage(width int) string {
 
 	// 设置页面卡片
 	settingsKeys := lipgloss.JoinVertical(lipgloss.Left,
-		sectionStyle.Render("⚙️  设置 [6]"),
+		sectionStyle.Render("⚙️  设置 [5]"),
 		renderKey("↑/↓", "选择配置项"),
 		renderKey("Enter", "编辑配置项"),
 		renderKey("Esc", "取消编辑"),

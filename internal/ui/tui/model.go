@@ -77,6 +77,7 @@ type Model struct {
 	siteTests        []model.SiteTest // 网站测试列表
 	selectedSiteTest int              // 选中的网站索引
 	proxyAddr        string           // 代理地址（用于网站测速）
+	showHelp         bool             // 是否显示帮助页面
 }
 
 // 消息类型
@@ -113,7 +114,6 @@ type keyMap struct {
 	Page3     key.Binding
 	Page4     key.Binding
 	Page5     key.Binding
-	Page6     key.Binding
 	Escape    key.Binding
 	Save      key.Binding
 	Backspace key.Binding
@@ -186,11 +186,7 @@ var keys = keyMap{
 	),
 	Page5: key.NewBinding(
 		key.WithKeys("5"),
-		key.WithHelp("5", "帮助"),
-	),
-	Page6: key.NewBinding(
-		key.WithKeys("6"),
-		key.WithHelp("6", "设置"),
+		key.WithHelp("5", "设置"),
 	),
 	Escape: key.NewBinding(
 		key.WithKeys("esc"),

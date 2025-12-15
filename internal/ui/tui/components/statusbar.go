@@ -40,7 +40,7 @@ func RenderStatusBar(width int, err error, testing bool) string {
 	}
 
 	// 帮助提示
-	helpHint := styles.StatusStyle.Render(" | 按Tab切换页面 | 按数字键快速跳转 | 按r刷新 | 按q退出")
+	helpHint := styles.StatusStyle.Render(" | Tab 切换页面 | 数字 快速跳转 | r 刷新 | q 退出 | ? 帮助")
 
 	divider := styles.DividerStyle.
 		Render(strings.Repeat("─", width))

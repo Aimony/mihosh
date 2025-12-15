@@ -51,6 +51,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// 帮助页面弹窗处理
+		if m.showHelp {
+			switch msg.String() {
+			case "esc", "q", "?":
+				m.showHelp = false
+				return m, nil
+			}
+			// 显示帮助时拦截其他按键(除了强制退出)
+			if key.Matches(msg, keys.Quit) {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
+		// 全局帮助快捷键
+		if msg.String() == "?" {
+			m.showHelp = true
+			return m, nil
+		}
+
 		// 编辑模式特殊处理
 		if m.editMode {
 			return m.handleEditMode(msg)
@@ -96,10 +116,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, fetchRules(m.client)
 
 		case key.Matches(msg, keys.Page5):
-			m.currentPage = components.PageHelp
-			return m, m.onPageChange()
-
-		case key.Matches(msg, keys.Page6):
 			m.currentPage = components.PageSettings
 			return m, nil
 
@@ -115,8 +131,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConnectionsPage(msg)
 		case components.PageSettings:
 			return m.updateSettingsPage(msg)
-		case components.PageHelp:
-			return m.updateHelpPage(msg)
 		case components.PageLogs:
 			return m.updateLogsPage(msg)
 		case components.PageRules:

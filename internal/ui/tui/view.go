@@ -11,6 +11,12 @@ func (m Model) View() string {
 		return "初始化中..."
 	}
 
+	// 帮助弹窗处理
+	if m.showHelp {
+		helpView := m.renderHelpPage()
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpView)
+	}
+
 	// 渲染标签栏
 	tabs := components.RenderTabs(m.currentPage, m.width)
 
@@ -23,8 +29,6 @@ func (m Model) View() string {
 		content = m.renderConnectionsPage()
 	case components.PageSettings:
 		content = m.renderSettingsPage()
-	case components.PageHelp:
-		content = m.renderHelpPage()
 	case components.PageLogs:
 		content = m.renderLogsPage()
 	case components.PageRules:
