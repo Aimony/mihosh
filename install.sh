@@ -63,7 +63,7 @@ fi
 echo_info "Latest version: $VERSION"
 
 # 3. Construct Download URL
-DOWNLOAD_URL="https://github.com/aimony/mihosh/releases/download/${VERSION}/${BINARY_NAME}"
+DOWNLOAD_URL="https://github.com/aimony/mihosh/releases/download/${VERSION}/${BINARY_NAME}.tar.gz"
 
 # 4. Download and Install
 TMP_FILE="/tmp/${BINARY_NAME}"
