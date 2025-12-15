@@ -26,16 +26,13 @@ A full-featured terminal UI (TUI) management tool for mihomo, allowing you to el
 
 ## Installation
 
-### Binary Release
 
-Download the executable for your platform from [Releases](https://github.com/aimony/mihosh/releases).
-
-### Build from Source
 
 ```bash
-git clone https://github.com/aimony/mihosh.git
-cd mihosh && go build -o mihosh.exe
+# One-Click Install (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/aimony/mihosh/main/install.sh | bash
 ```
+
 
 ## Quick Start
 

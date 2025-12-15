@@ -26,16 +26,13 @@
 
 ## 安装
 
-### 二进制文件
 
-从 [Releases](https://github.com/aimony/mihosh/releases) 下载对应平台的可执行文件。
-
-### 从源码编译
 
 ```bash
-git clone https://github.com/aimony/mihosh.git
-cd mihosh && go build -o mihosh.exe
+# 一键安装 (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/aimony/mihosh/main/install.sh | bash
 ```
+
 
 ## 快速开始
 
