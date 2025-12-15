@@ -7,15 +7,19 @@ import (
 // renderNodesPage 渲染节点管理页面
 func (m Model) renderNodesPage() string {
 	state := pages.NodesPageState{
-		Groups:         m.groups,
-		Proxies:        m.proxies,
-		GroupNames:     m.groupNames,
-		SelectedGroup:  m.selectedGroup,
-		SelectedProxy:  m.selectedProxy,
-		CurrentProxies: m.currentProxies,
-		Testing:        m.testing,
-		TestFailures:   m.testFailures,
-		Width:          m.width,
+		Groups:            m.groups,
+		Proxies:           m.proxies,
+		GroupNames:        m.groupNames,
+		SelectedGroup:     m.selectedGroup,
+		SelectedProxy:     m.selectedProxy,
+		CurrentProxies:    m.currentProxies,
+		Testing:           m.testing,
+		TestFailures:      m.testFailures,
+		ShowFailureDetail: m.showFailureDetail,
+		Width:             m.width,
+		Height:            m.height,
+		GroupScrollTop:    m.groupScrollTop,
+		ProxyScrollTop:    m.proxyScrollTop,
 	}
 	return pages.RenderNodesPage(state)
 }

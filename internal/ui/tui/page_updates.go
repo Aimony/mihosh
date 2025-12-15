@@ -15,11 +15,16 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Up):
 		if m.selectedProxy > 0 {
 			m.selectedProxy--
+			// 调整滚动位置
+			if m.selectedProxy < m.proxyScrollTop {
+				m.proxyScrollTop = m.selectedProxy
+			}
 		}
 
 	case key.Matches(msg, keys.Down):
 		if m.selectedProxy < len(m.currentProxies)-1 {
 			m.selectedProxy++
+			// 滚动位置将在渲染时自动调整
 		}
 
 	case key.Matches(msg, keys.Left):
@@ -27,6 +32,11 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedGroup--
 			m.updateCurrentProxies()
 			m.selectedProxy = 0
+			m.proxyScrollTop = 0
+			// 调整策略组滚动位置
+			if m.selectedGroup < m.groupScrollTop {
+				m.groupScrollTop = m.selectedGroup
+			}
 		}
 
 	case key.Matches(msg, keys.Right):
@@ -34,6 +44,8 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedGroup++
 			m.updateCurrentProxies()
 			m.selectedProxy = 0
+			m.proxyScrollTop = 0
+			// 滚动位置将在渲染时自动调整
 		}
 
 	case key.Matches(msg, keys.Enter):
@@ -54,7 +66,14 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.groupNames) > 0 && len(m.currentProxies) > 0 {
 			m.testing = true
 			m.testFailures = []string{} // 清空之前的失败记录
+			m.showFailureDetail = false // 重置详情显示
 			return m, testAllProxies(m.client, m.currentProxies, m.testURL, m.timeout)
+		}
+
+	case msg.String() == "f":
+		// 切换测速失败详情显示
+		if len(m.testFailures) > 0 {
+			m.showFailureDetail = !m.showFailureDetail
 		}
 	}
 
@@ -336,14 +355,14 @@ func (m Model) handleEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case key.Matches(msg, keys.Left):
-		// 光标左移
+	case msg.String() == "left":
+		// 光标左移（仅响应方向键，不响应 h 键以允许输入）
 		if m.editCursor > 0 {
 			m.editCursor--
 		}
 
-	case key.Matches(msg, keys.Right):
-		// 光标右移
+	case msg.String() == "right":
+		// 光标右移（仅响应方向键，不响应 l 键以允许输入）
 		if m.editCursor < len(m.editValue) {
 			m.editCursor++
 		}

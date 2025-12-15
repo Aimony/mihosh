@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -201,8 +202,11 @@ func renderLogEntry(log model.LogEntry, selected bool, maxWidth int, hOffset int
 	// 内容
 	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC"))
 
-	// 应用水平偏移
+	// 对日志内容进行 URL 解码
 	content := log.Payload
+	if decoded, err := url.QueryUnescape(content); err == nil {
+		content = decoded
+	}
 	if hOffset > 0 && len(content) > hOffset {
 		content = content[hOffset:]
 	} else if hOffset > 0 {

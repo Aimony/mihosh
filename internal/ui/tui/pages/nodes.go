@@ -11,15 +11,19 @@ import (
 
 // NodesPageState 节点页面状态（由 Model 传入）
 type NodesPageState struct {
-	Groups         map[string]model.Group
-	Proxies        map[string]model.Proxy
-	GroupNames     []string
-	SelectedGroup  int
-	SelectedProxy  int
-	CurrentProxies []string
-	Testing        bool
-	TestFailures   []string
-	Width          int
+	Groups            map[string]model.Group
+	Proxies           map[string]model.Proxy
+	GroupNames        []string
+	SelectedGroup     int
+	SelectedProxy     int
+	CurrentProxies    []string
+	Testing           bool
+	TestFailures      []string
+	ShowFailureDetail bool // 是否显示测速失败详情
+	Width             int
+	Height            int // 终端高度
+	GroupScrollTop    int // 策略组列表滚动偏移
+	ProxyScrollTop    int // 节点列表滚动偏移
 }
 
 // displayWidth 计算字符串的显示宽度（中文占2个单位，英文占1个单位）
@@ -60,6 +64,27 @@ func RenderNodesPage(state NodesPageState) string {
 	activeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#1E90FF"))
 
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#666"))
+
+	// 计算可用高度（减去标签栏、状态栏、标题、帮助提示等固定区域）
+	// 标签栏2行 + 状态栏2行 + 策略组标题2行 + 节点标题2行 + 帮助提示1行 + 间隔3行 = 约12行
+	fixedLines := 12
+	availableHeight := state.Height - fixedLines
+	if availableHeight < 10 {
+		availableHeight = 10
+	}
+
+	// 将可用空间分配给策略组和节点列表（比例约为 1:2）
+	groupMaxLines := availableHeight / 3
+	if groupMaxLines < 3 {
+		groupMaxLines = 3
+	}
+	proxyMaxLines := availableHeight - groupMaxLines
+	if proxyMaxLines < 5 {
+		proxyMaxLines = 5
+	}
+
 	// 策略组列表
 	var groupList string
 	if len(state.GroupNames) == 0 {
@@ -89,7 +114,7 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 
 		// 渲染表头
-		headerStyle := lipgloss.NewStyle().
+		tableHeaderStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888")).
 			Bold(true)
 
@@ -98,11 +123,31 @@ func RenderNodesPage(state NodesPageState) string {
 			padString("类型", maxTypeLen),
 			padString("当前节点", maxNowLen),
 		)
-		groupList = headerStyle.Render(header) + "\n"
+		groupList = tableHeaderStyle.Render(header) + "\n"
 
-		// 渲染策略组列表
+		// 调整滚动位置确保选中项可见
+		groupScrollTop := state.GroupScrollTop
+		if state.SelectedGroup < groupScrollTop {
+			groupScrollTop = state.SelectedGroup
+		}
+		if state.SelectedGroup >= groupScrollTop+groupMaxLines {
+			groupScrollTop = state.SelectedGroup - groupMaxLines + 1
+		}
+
+		// 显示滚动指示（上方）
+		if groupScrollTop > 0 {
+			groupList += dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项\n", groupScrollTop))
+		}
+
+		// 渲染可见的策略组列表
+		endIdx := groupScrollTop + groupMaxLines
+		if endIdx > len(state.GroupNames) {
+			endIdx = len(state.GroupNames)
+		}
+
 		var lines []string
-		for i, name := range state.GroupNames {
+		for i := groupScrollTop; i < endIdx; i++ {
+			name := state.GroupNames[i]
 			group := state.Groups[name]
 			prefix := "  "
 			if i == state.SelectedGroup {
@@ -125,6 +170,11 @@ func RenderNodesPage(state NodesPageState) string {
 			lines = append(lines, line)
 		}
 		groupList += strings.Join(lines, "\n")
+
+		// 显示滚动指示（下方）
+		if endIdx < len(state.GroupNames) {
+			groupList += "\n" + dimStyle.Render(fmt.Sprintf("  ↓ 还有 %d 项", len(state.GroupNames)-endIdx))
+		}
 	}
 
 	// 节点列表
@@ -154,7 +204,7 @@ func RenderNodesPage(state NodesPageState) string {
 		statusColWidth := 2 // "✓ " 或 "  "
 
 		// 渲染表头
-		headerStyle := lipgloss.NewStyle().
+		tableHeaderStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888")).
 			Bold(true)
 
@@ -163,11 +213,31 @@ func RenderNodesPage(state NodesPageState) string {
 			padString("延迟", delayColWidth),
 			padString("状态", statusColWidth),
 		)
-		proxyList = headerStyle.Render(header) + "\n"
+		proxyList = tableHeaderStyle.Render(header) + "\n"
 
-		// 渲染节点列表
+		// 调整滚动位置确保选中项可见
+		proxyScrollTop := state.ProxyScrollTop
+		if state.SelectedProxy < proxyScrollTop {
+			proxyScrollTop = state.SelectedProxy
+		}
+		if state.SelectedProxy >= proxyScrollTop+proxyMaxLines {
+			proxyScrollTop = state.SelectedProxy - proxyMaxLines + 1
+		}
+
+		// 显示滚动指示（上方）
+		if proxyScrollTop > 0 {
+			proxyList += dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项\n", proxyScrollTop))
+		}
+
+		// 渲染可见的节点列表
+		endIdx := proxyScrollTop + proxyMaxLines
+		if endIdx > len(state.CurrentProxies) {
+			endIdx = len(state.CurrentProxies)
+		}
+
 		var lines []string
-		for i, name := range state.CurrentProxies {
+		for i := proxyScrollTop; i < endIdx; i++ {
+			name := state.CurrentProxies[i]
 			proxy, exists := state.Proxies[name]
 
 			prefix := "  "
@@ -216,6 +286,11 @@ func RenderNodesPage(state NodesPageState) string {
 			lines = append(lines, line)
 		}
 		proxyList += strings.Join(lines, "\n")
+
+		// 显示滚动指示（下方）
+		if endIdx < len(state.CurrentProxies) {
+			proxyList += "\n" + dimStyle.Render(fmt.Sprintf("  ↓ 还有 %d 项", len(state.CurrentProxies)-endIdx))
+		}
 	}
 
 	helpText := lipgloss.NewStyle().
@@ -226,12 +301,22 @@ func RenderNodesPage(state NodesPageState) string {
 	if len(state.TestFailures) > 0 {
 		errorStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF0000"))
+		hintStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#888"))
 
-		failureLines := []string{errorStyle.Render("\n⚠ 测速失败的节点:")}
-		for _, failure := range state.TestFailures {
-			failureLines = append(failureLines, "  "+failure)
+		if state.ShowFailureDetail {
+			// 详情模式：显示所有失败节点及错误信息
+			failureLines := []string{errorStyle.Render("⚠ 测速失败的节点:")}
+			for _, failure := range state.TestFailures {
+				failureLines = append(failureLines, "  "+failure)
+			}
+			failureLines = append(failureLines, hintStyle.Render("  [f]收起详情"))
+			failureInfo = strings.Join(failureLines, "\n")
+		} else {
+			// 简略模式：只显示失败数量
+			failureInfo = errorStyle.Render(fmt.Sprintf("⚠ %d 个节点测速失败", len(state.TestFailures))) +
+				" " + hintStyle.Render("[f]查看详情")
 		}
-		failureInfo = strings.Join(failureLines, "\n")
 	}
 
 	return lipgloss.JoinVertical(
@@ -241,8 +326,8 @@ func RenderNodesPage(state NodesPageState) string {
 		"",
 		headerStyle.Width(state.Width-4).Render("节点列表"),
 		proxyList,
-		failureInfo,
 		"",
 		helpText,
+		failureInfo,
 	)
 }

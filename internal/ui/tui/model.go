@@ -11,30 +11,34 @@ import (
 
 // Model TUI 主模型
 type Model struct {
-	client          *api.Client
-	config          *config.Config
-	proxySvc        *service.ProxyService
-	configSvc       *service.ConfigService
-	connSvc         *service.ConnectionService
-	groups          map[string]model.Group
-	proxies         map[string]model.Proxy
-	connections     *model.ConnectionsResponse
-	groupNames      []string
-	selectedGroup   int
-	selectedProxy   int
-	selectedSetting int
-	width           int
-	height          int
-	err             error
-	testURL         string
-	timeout         int
-	testing         bool
-	currentProxies  []string
-	currentPage     components.PageType
-	editMode        bool
-	editValue       string
-	editCursor      int      // 编辑时光标位置
-	testFailures    []string // 记录测速失败的节点
+	client            *api.Client
+	config            *config.Config
+	proxySvc          *service.ProxyService
+	configSvc         *service.ConfigService
+	connSvc           *service.ConnectionService
+	groups            map[string]model.Group
+	proxies           map[string]model.Proxy
+	connections       *model.ConnectionsResponse
+	groupNames        []string
+	selectedGroup     int
+	selectedProxy     int
+	selectedSetting   int
+	width             int
+	height            int
+	err               error
+	testURL           string
+	timeout           int
+	testing           bool
+	currentProxies    []string
+	currentPage       components.PageType
+	editMode          bool
+	editValue         string
+	editCursor        int      // 编辑时光标位置
+	testFailures      []string // 记录测速失败的节点
+	showFailureDetail bool     // 是否显示测速失败详情
+	// 节点页面滚动状态
+	groupScrollTop int // 策略组列表滚动偏移
+	proxyScrollTop int // 节点列表滚动偏移
 	// 连接页面状态
 	selectedConn       int               // 选中的连接索引
 	connScrollTop      int               // 连接列表滚动偏移
