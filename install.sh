@@ -66,25 +66,47 @@ echo_info "Latest version: $VERSION"
 DOWNLOAD_URL="https://github.com/aimony/mihosh/releases/download/${VERSION}/${BINARY_NAME}.tar.gz"
 
 # 4. Download and Install
-TMP_FILE="/tmp/${BINARY_NAME}"
+# 4. Download and Install
+TMP_DIR=$(mktemp -d)
+ARCHIVE_FILE="${TMP_DIR}/${BINARY_NAME}.tar.gz"
 
 echo_info "Downloading ${BINARY_NAME} from ${DOWNLOAD_URL}..."
-if curl -L -o "$TMP_FILE" --fail "$DOWNLOAD_URL"; then
+if curl -L -o "$ARCHIVE_FILE" --fail "$DOWNLOAD_URL"; then
     echo_info "Download successful."
 else
     echo_error "Download failed. Please check your internet connection or if the asset exists for your architecture."
+    rm -rf "$TMP_DIR"
     exit 1
 fi
 
-chmod +x "$TMP_FILE"
+echo_info "Extracting archive..."
+tar -xzf "$ARCHIVE_FILE" -C "$TMP_DIR"
+
+# Find the binary (assuming it's named 'mihosh' or similar)
+EXTRACTED_BINARY=$(find "$TMP_DIR" -type f -name "${TARGET_NAME}" | head -n 1)
+
+if [ -z "$EXTRACTED_BINARY" ]; then
+    # Fallback types
+    EXTRACTED_BINARY=$(find "$TMP_DIR" -type f -perm -u+x ! -name "*.tar.gz" | head -n 1)
+fi
+
+if [ -z "$EXTRACTED_BINARY" ]; then
+    echo_error "Could not find binary in the downloaded archive."
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+
+chmod +x "$EXTRACTED_BINARY"
 
 echo_info "Installing to ${INSTALL_DIR}/${TARGET_NAME}..."
 if [ -w "$INSTALL_DIR" ]; then
-    mv "$TMP_FILE" "${INSTALL_DIR}/${TARGET_NAME}"
+    mv "$EXTRACTED_BINARY" "${INSTALL_DIR}/${TARGET_NAME}"
 else
     echo_info "Sudo permission required to install to ${INSTALL_DIR}"
-    sudo mv "$TMP_FILE" "${INSTALL_DIR}/${TARGET_NAME}"
+    sudo mv "$EXTRACTED_BINARY" "${INSTALL_DIR}/${TARGET_NAME}"
 fi
+
+rm -rf "$TMP_DIR"
 
 echo_info "Installation completed successfully!"
 echo_info "Run 'mihosh' to start."
