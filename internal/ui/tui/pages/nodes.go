@@ -7,6 +7,7 @@ import (
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // NodesPageState 节点页面状态（由 Model 传入）
@@ -26,17 +27,9 @@ type NodesPageState struct {
 	ProxyScrollTop    int // 节点列表滚动偏移
 }
 
-// displayWidth 计算字符串的显示宽度（中文占2个单位，英文占1个单位）
+// displayWidth 计算字符串的显示宽度（使用 runewidth 库精确计算）
 func displayWidth(s string) int {
-	width := 0
-	for _, r := range s {
-		if r > 127 {
-			width += 2
-		} else {
-			width++
-		}
-	}
-	return width
+	return runewidth.StringWidth(s)
 }
 
 // padString 将字符串填充到指定显示宽度
@@ -113,6 +106,20 @@ func RenderNodesPage(state NodesPageState) string {
 			}
 		}
 
+		// 调整滚动位置确保选中项可见
+		groupScrollTop := state.GroupScrollTop
+		if state.SelectedGroup < groupScrollTop {
+			groupScrollTop = state.SelectedGroup
+		}
+		if state.SelectedGroup >= groupScrollTop+groupMaxLines {
+			groupScrollTop = state.SelectedGroup - groupMaxLines + 1
+		}
+
+		// 显示滚动指示（在表头上方）
+		if groupScrollTop > 0 {
+			groupList = dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项", groupScrollTop)) + "\n"
+		}
+
 		// 渲染表头
 		tableHeaderStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888")).
@@ -123,21 +130,7 @@ func RenderNodesPage(state NodesPageState) string {
 			padString("类型", maxTypeLen),
 			padString("当前节点", maxNowLen),
 		)
-		groupList = tableHeaderStyle.Render(header) + "\n"
-
-		// 调整滚动位置确保选中项可见
-		groupScrollTop := state.GroupScrollTop
-		if state.SelectedGroup < groupScrollTop {
-			groupScrollTop = state.SelectedGroup
-		}
-		if state.SelectedGroup >= groupScrollTop+groupMaxLines {
-			groupScrollTop = state.SelectedGroup - groupMaxLines + 1
-		}
-
-		// 显示滚动指示（上方）
-		if groupScrollTop > 0 {
-			groupList += dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项\n", groupScrollTop))
-		}
+		groupList += tableHeaderStyle.Render(header) + "\n"
 
 		// 渲染可见的策略组列表
 		endIdx := groupScrollTop + groupMaxLines
@@ -203,6 +196,20 @@ func RenderNodesPage(state NodesPageState) string {
 		delayColWidth := 6  // "999ms" 或 "     "
 		statusColWidth := 2 // "✓ " 或 "  "
 
+		// 调整滚动位置确保选中项可见
+		proxyScrollTop := state.ProxyScrollTop
+		if state.SelectedProxy < proxyScrollTop {
+			proxyScrollTop = state.SelectedProxy
+		}
+		if state.SelectedProxy >= proxyScrollTop+proxyMaxLines {
+			proxyScrollTop = state.SelectedProxy - proxyMaxLines + 1
+		}
+
+		// 显示滚动指示（在表头上方）
+		if proxyScrollTop > 0 {
+			proxyList = dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项", proxyScrollTop)) + "\n"
+		}
+
 		// 渲染表头
 		tableHeaderStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888")).
@@ -213,21 +220,7 @@ func RenderNodesPage(state NodesPageState) string {
 			padString("延迟", delayColWidth),
 			padString("状态", statusColWidth),
 		)
-		proxyList = tableHeaderStyle.Render(header) + "\n"
-
-		// 调整滚动位置确保选中项可见
-		proxyScrollTop := state.ProxyScrollTop
-		if state.SelectedProxy < proxyScrollTop {
-			proxyScrollTop = state.SelectedProxy
-		}
-		if state.SelectedProxy >= proxyScrollTop+proxyMaxLines {
-			proxyScrollTop = state.SelectedProxy - proxyMaxLines + 1
-		}
-
-		// 显示滚动指示（上方）
-		if proxyScrollTop > 0 {
-			proxyList += dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项\n", proxyScrollTop))
-		}
+		proxyList += tableHeaderStyle.Render(header) + "\n"
 
 		// 渲染可见的节点列表
 		endIdx := proxyScrollTop + proxyMaxLines
