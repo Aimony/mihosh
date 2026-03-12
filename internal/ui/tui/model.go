@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
@@ -53,8 +55,10 @@ type Model struct {
 	lastUpload   int64            // 上次上传总量（用于计算速度）
 	lastDownload int64            // 上次下载总量
 	// WebSocket客户端
-	wsClient  *api.WSClient    // WebSocket流客户端
-	wsMsgChan chan interface{} // WebSocket消息通道
+	wsClient  *api.WSClient      // WebSocket流客户端
+	wsMsgChan chan interface{}   // WebSocket消息通道
+	wsCtx     context.Context    // WebSocket上下文，用于取消监听
+	wsCancel  context.CancelFunc // WebSocket取消函数
 	// 历史连接
 	closedConnections []model.Connection          // 已关闭的连接历史（最多1000条）
 	connViewMode      int                         // 0=活跃连接, 1=历史连接

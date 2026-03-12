@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -141,14 +142,18 @@ func stopWSStreams(wsClient *api.WSClient) tea.Cmd {
 }
 
 // listenWSMessages 监听WebSocket消息
-func listenWSMessages(msgChan chan interface{}) tea.Cmd {
+func listenWSMessages(ctx context.Context, msgChan chan interface{}) tea.Cmd {
 	return func() tea.Msg {
-		msg := <-msgChan
-		// 将interface{}转换为tea.Msg
-		if teaMsg, ok := msg.(tea.Msg); ok {
-			return teaMsg
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-msgChan:
+			// 将interface{}转换为tea.Msg
+			if teaMsg, ok := msg.(tea.Msg); ok {
+				return teaMsg
+			}
+			return msg
 		}
-		return msg
 	}
 }
 

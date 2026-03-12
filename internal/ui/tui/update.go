@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -105,7 +106,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Page2):
 			m.currentPage = components.PageConnections
-			return m, fetchConnections(m.client)
+			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page3):
 			m.currentPage = components.PageLogs
@@ -113,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Page4):
 			m.currentPage = components.PageRules
-			return m, fetchRules(m.client)
+			return m, m.onPageChange()
 
 		case key.Matches(msg, keys.Page5):
 			m.currentPage = components.PageSettings
@@ -179,7 +180,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// 继续监听WebSocket消息
 		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
-			return m, listenWSMessages(m.wsMsgChan)
+			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case trafficWSMsg:
@@ -189,7 +190,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// 继续监听WebSocket消息
 		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
-			return m, listenWSMessages(m.wsMsgChan)
+			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case connectionsWSMsg:
@@ -245,7 +246,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// 继续监听WebSocket消息
 		if m.currentPage == components.PageConnections && m.wsMsgChan != nil {
-			return m, listenWSMessages(m.wsMsgChan)
+			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case connTickMsg:
@@ -257,7 +258,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logsTickMsg:
 		// 日志页面定时器触发：继续定时器并确保监听
 		if m.currentPage == components.PageLogs && m.wsMsgChan != nil {
-			return m, tea.Batch(logsTick(), listenWSMessages(m.wsMsgChan))
+			return m, tea.Batch(logsTick(), listenWSMessages(m.wsCtx, m.wsMsgChan))
 		}
 
 	case testDoneMsg:
@@ -306,7 +307,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// 继续监听WebSocket消息
 		if m.wsMsgChan != nil && (m.currentPage == components.PageConnections || m.currentPage == components.PageLogs) {
-			return m, listenWSMessages(m.wsMsgChan)
+			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case rulesMsg:
@@ -338,28 +339,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // onPageChange 页面切换时的处理
-func (m Model) onPageChange() tea.Cmd {
+func (m *Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
 		// 进入连接页面时启动WebSocket流
+		if m.wsCancel != nil {
+			m.wsCancel()
+		}
+		m.wsCtx, m.wsCancel = context.WithCancel(context.Background())
 		return tea.Batch(
+			fetchConnections(m.client),
 			startWSStreams(m.wsClient, m.wsMsgChan),
-			listenWSMessages(m.wsMsgChan),
+			listenWSMessages(m.wsCtx, m.wsMsgChan),
 			connTick(),
 		)
 	case components.PageLogs:
 		// 进入日志页面时启动WebSocket流和定时器
+		if m.wsCancel != nil {
+			m.wsCancel()
+		}
+		m.wsCtx, m.wsCancel = context.WithCancel(context.Background())
 		return tea.Batch(
 			startWSStreams(m.wsClient, m.wsMsgChan),
-			listenWSMessages(m.wsMsgChan),
+			listenWSMessages(m.wsCtx, m.wsMsgChan),
 			logsTick(),
 		)
 	case components.PageRules:
 		// 进入规则页面时获取规则列表
+		if m.wsCancel != nil {
+			m.wsCancel()
+		}
 		return fetchRules(m.client)
 	default:
 		// 离开连接/日志页面时停止WebSocket流
+		if m.wsCancel != nil {
+			m.wsCancel()
+		}
 		if m.wsClient != nil && m.wsClient.IsRunning() {
 			return stopWSStreams(m.wsClient)
 		}
@@ -368,7 +384,7 @@ func (m Model) onPageChange() tea.Cmd {
 }
 
 // refreshCurrentPage 刷新当前页面
-func (m Model) refreshCurrentPage() tea.Cmd {
+func (m *Model) refreshCurrentPage() tea.Cmd {
 	switch m.currentPage {
 	case components.PageNodes:
 		return tea.Batch(fetchGroups(m.client), fetchProxies(m.client))
