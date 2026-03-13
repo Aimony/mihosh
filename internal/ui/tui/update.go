@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -150,6 +151,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for name := range msg {
 			m.groupNames = append(m.groupNames, name)
 		}
+		sort.Strings(m.groupNames)
 
 		// 恢复之前选中的策略组
 		if selectedGroupName != "" {
