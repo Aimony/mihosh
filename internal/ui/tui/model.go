@@ -87,7 +87,10 @@ type Model struct {
 
 // 消息类型
 type (
-	groupsMsg      map[string]model.Group
+	groupsMsg struct {
+		groups       map[string]model.Group
+		orderedNames []string
+	}
 	proxiesMsg     map[string]model.Proxy
 	connectionsMsg *model.ConnectionsResponse
 	errMsg         error

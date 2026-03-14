@@ -16,11 +16,11 @@ import (
 // 命令函数
 func fetchGroups(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
-		groups, err := client.GetGroups()
+		groups, orderedNames, err := client.GetGroups()
 		if err != nil {
 			return errMsg(err)
 		}
-		return groupsMsg(groups)
+		return groupsMsg{groups: groups, orderedNames: orderedNames}
 	}
 }
 

@@ -22,7 +22,7 @@ func NewProxyService(client *api.Client, testURL string, timeout int) *ProxyServ
 }
 
 // GetGroups 获取所有策略组
-func (s *ProxyService) GetGroups() (map[string]model.Group, error) {
+func (s *ProxyService) GetGroups() (map[string]model.Group, []string, error) {
 	return s.client.GetGroups()
 }
 

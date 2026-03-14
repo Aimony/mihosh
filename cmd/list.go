@@ -23,7 +23,7 @@ var listCmd = &cobra.Command{
 		client := api.NewClient(cfg)
 		proxySvc := service.NewProxyService(client, cfg.TestURL, cfg.Timeout)
 
-		groups, err := proxySvc.GetGroups()
+		groups, _, err := proxySvc.GetGroups()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "获取策略组失败: %v\n", err)
 			os.Exit(1)

@@ -70,11 +70,11 @@ func (c *Client) TestGroupDelay(group, testURL string, timeout int) error {
 	return err
 }
 
-// GetGroups 获取所有策略组
-func (c *Client) GetGroups() (map[string]model.Group, error) {
+// GetGroups 获取所有策略组，返回策略组map和按配置文件顺序排列的组名列表
+func (c *Client) GetGroups() (map[string]model.Group, []string, error) {
 	proxies, err := c.GetProxies()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	groups := make(map[string]model.Group)
@@ -91,7 +91,30 @@ func (c *Client) GetGroups() (map[string]model.Group, error) {
 		}
 	}
 
-	return groups, nil
+	// 利用 GLOBAL proxy 的 all 字段获取配置文件中的原始顺序
+	var orderedNames []string
+	if global, ok := proxies["GLOBAL"]; ok {
+		for _, name := range global.All {
+			if _, isGroup := groups[name]; isGroup {
+				orderedNames = append(orderedNames, name)
+			}
+		}
+	}
+
+	// 兜底：如果没有 GLOBAL 或顺序不完整，补充遗漏的组
+	if len(orderedNames) != len(groups) {
+		existing := make(map[string]bool, len(orderedNames))
+		for _, name := range orderedNames {
+			existing[name] = true
+		}
+		for name := range groups {
+			if !existing[name] {
+				orderedNames = append(orderedNames, name)
+			}
+		}
+	}
+
+	return groups, orderedNames, nil
 }
 
 // GetConnections 获取连接信息

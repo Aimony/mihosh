@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -141,18 +140,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case groupsMsg:
-		// 保存当前选中的策略组名称
+		// 保存当前选中的策略组名称和节点名称
 		var selectedGroupName string
+		var selectedProxyName string
 		if len(m.groupNames) > 0 && m.selectedGroup < len(m.groupNames) {
 			selectedGroupName = m.groupNames[m.selectedGroup]
 		}
-
-		m.groups = msg
-		m.groupNames = make([]string, 0, len(msg))
-		for name := range msg {
-			m.groupNames = append(m.groupNames, name)
+		if len(m.currentProxies) > 0 && m.selectedProxy < len(m.currentProxies) {
+			selectedProxyName = m.currentProxies[m.selectedProxy]
 		}
-		sort.Strings(m.groupNames)
+
+		m.groups = msg.groups
+		// 使用 API 返回的有序名称列表，保持配置文件中的原始顺序
+		m.groupNames = msg.orderedNames
 
 		// 恢复之前选中的策略组
 		if selectedGroupName != "" {
@@ -165,6 +165,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.updateCurrentProxies()
+
+		// 恢复之前选中的节点
+		if selectedProxyName != "" {
+			for i, name := range m.currentProxies {
+				if name == selectedProxyName {
+					m.selectedProxy = i
+					break
+				}
+			}
+		}
 
 	case proxiesMsg:
 		m.proxies = msg
@@ -356,6 +366,8 @@ func (m *Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
+		// 重置 prevConnIDs 快照，避免积压的关闭记录瞬间爆发
+		m.prevConnIDs = nil
 		return tea.Batch(
 			fetchConnections(m.client),
 			connTick(),
