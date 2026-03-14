@@ -1,11 +1,15 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/viper"
 )
+
+// ErrConfigNotFound 配置文件不存在
+var ErrConfigNotFound = errors.New("配置文件不存在")
 
 // GetConfigDir 获取配置目录
 func GetConfigDir() (string, error) {
@@ -26,12 +30,9 @@ func Load() (*Config, error) {
 
 	configFile := filepath.Join(configDir, "config.yaml")
 
-	// 如果配置文件不存在，创建默认配置
+	// 配置文件不存在时返回错误，由调用方决定是否触发初始化引导
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		if err := Save(&DefaultConfig); err != nil {
-			return nil, err
-		}
-		return &DefaultConfig, nil
+		return nil, ErrConfigNotFound
 	}
 
 	viper.SetConfigFile(configFile)
