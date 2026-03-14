@@ -49,7 +49,8 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Enter):
-		if len(m.currentProxies) > 0 && m.selectedProxy < len(m.currentProxies) {
+		if len(m.groupNames) > 0 && m.selectedGroup < len(m.groupNames) &&
+			len(m.currentProxies) > 0 && m.selectedProxy < len(m.currentProxies) {
 			groupName := m.groupNames[m.selectedGroup]
 			proxyName := m.currentProxies[m.selectedProxy]
 			return m, selectProxy(m.client, groupName, proxyName)
