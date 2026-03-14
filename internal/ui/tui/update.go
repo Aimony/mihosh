@@ -294,6 +294,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, fetchProxies(m.client)
 
+	case testAllDoneMsg:
+		// 记录测速失败的节点
+		for name, delay := range msg.results {
+			if delay == -1 { // -1 represents an explicit error based on Task 2
+				failureInfo := fmt.Sprintf("%s: timeout or error", name)
+				m.testFailures = append(m.testFailures, failureInfo)
+			}
+		}
+		m.testing = false
+		// 获取最新代理状态
+		return m, fetchProxies(m.client)
+
 	case configSavedMsg:
 		m.editMode = false
 		m.err = nil
@@ -327,6 +339,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.logs) > 1000 {
 			m.logs = m.logs[:1000]
 		}
+		m.updateFilteredLogs() // 更新缓存
 		// 继续监听WebSocket消息（后台持续接收，不绑定页面）
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
@@ -335,6 +348,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rulesMsg:
 		// 更新规则列表
 		m.rules = msg
+		m.updateFilteredRules() // 更新缓存
 
 	case siteTestMsg:
 		// 更新网站测速结果

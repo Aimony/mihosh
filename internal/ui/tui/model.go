@@ -65,16 +65,18 @@ type Model struct {
 	connViewMode      int                         // 0=活跃连接, 1=历史连接
 	prevConnIDs       map[string]model.Connection // 上次推送的连接ID映射（用于检测关闭）
 	// 日志页面状态
-	logs             []model.LogEntry // 日志列表（最多保留1000条）
-	logLevel         int              // 当前级别索引（0=debug, 1=info, 2=warning, 3=error, 4=silent）
+	logs               []model.LogEntry // 日志列表（最多保留1000条）
+	filteredLogIndices []int            // 过滤后的日志索引缓存
+	logLevel           int              // 当前级别索引（0=debug, 1=info, 2=warning, 3=error, 4=silent）
 	logFilter        string           // 搜索关键词
 	logFilterMode    bool             // 是否处于过滤输入模式
 	selectedLog      int              // 选中的日志索引
 	logScrollTop     int              // 日志列表滚动偏移
 	logHScrollOffset int              // 日志水平滚动偏移
 	// 规则页面状态
-	rules          []model.Rule // 规则列表
-	ruleFilter     string       // 搜索关键词
+	rules               []model.Rule // 规则列表
+	filteredRuleIndices []int        // 过滤后的规则索引缓存
+	ruleFilter          string       // 搜索关键词
 	ruleFilterMode bool         // 是否处于过滤输入模式
 	selectedRule   int          // 选中的规则索引
 	ruleScrollTop  int          // 规则列表滚动偏移
@@ -102,6 +104,9 @@ type (
 	configSavedMsg          struct{}
 	connectionClosedMsg     struct{ id string }
 	allConnectionsClosedMsg struct{}
+	testAllDoneMsg          struct {
+		results map[string]int
+	}
 )
 
 // 快捷键定义

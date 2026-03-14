@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	tea "github.com/charmbracelet/bubbletea"
@@ -171,7 +172,7 @@ func testProxy(client *api.Client, name, testURL string, timeout int) tea.Cmd {
 	return func() tea.Msg {
 		delay, err := client.TestProxyDelay(name, testURL, timeout)
 		if err != nil {
-			return testDoneMsg{name: name, delay: 0, err: err}
+			return testDoneMsg{name: name, delay: -1, err: err}
 		}
 		return testDoneMsg{name: name, delay: delay, err: nil}
 	}
@@ -186,14 +187,11 @@ func testGroup(client *api.Client, group, testURL string, timeout int) tea.Cmd {
 	}
 }
 
-// testAllProxies 逐个测速所有节点
-func testAllProxies(client *api.Client, proxies []string, testURL string, timeout int) tea.Cmd {
+// testAllProxies 批量测试所有节点（使用 Service 层并发）
+func testAllProxies(proxySvc *service.ProxyService, proxies []string) tea.Cmd {
 	return func() tea.Msg {
-		var cmds []tea.Cmd
-		for _, proxyName := range proxies {
-			cmds = append(cmds, testProxy(client, proxyName, testURL, timeout))
-		}
-		return tea.Batch(cmds...)()
+		results := proxySvc.TestAllProxies(proxies)
+		return testAllDoneMsg{results: results}
 	}
 }
 

@@ -67,8 +67,9 @@ func (m Model) renderHelpPage() string {
 // renderLogsPage 渲染日志页面
 func (m Model) renderLogsPage() string {
 	state := pages.LogsPageState{
-		Logs:          m.logs,
-		LogLevel:      m.logLevel,
+		Logs:               m.logs,
+		FilteredLogIndices: m.filteredLogIndices,
+		LogLevel:           m.logLevel,
 		FilterText:    m.logFilter,
 		FilterMode:    m.logFilterMode,
 		SelectedLog:   m.selectedLog,
@@ -83,8 +84,9 @@ func (m Model) renderLogsPage() string {
 // renderRulesPage 渲染规则页面
 func (m Model) renderRulesPage() string {
 	state := pages.RulesPageState{
-		Rules:        m.rules,
-		FilterText:   m.ruleFilter,
+		Rules:               m.rules,
+		FilteredRuleIndices: m.filteredRuleIndices,
+		FilterText:          m.ruleFilter,
 		FilterMode:   m.ruleFilterMode,
 		SelectedRule: m.selectedRule,
 		ScrollTop:    m.ruleScrollTop,

@@ -23,8 +23,9 @@ var logLevelColors = map[string]lipgloss.Color{
 
 // LogsPageState 日志页面状态
 type LogsPageState struct {
-	Logs          []model.LogEntry // 日志列表
-	LogLevel      int              // 当前级别索引
+	Logs               []model.LogEntry // 日志列表
+	FilteredLogIndices []int            // 过滤后的日志索引
+	LogLevel           int              // 当前级别索引
 	FilterText    string           // 搜索关键词
 	FilterMode    bool             // 是否处于过滤输入模式
 	SelectedLog   int              // 选中的日志索引
@@ -48,8 +49,13 @@ func RenderLogsPage(state LogsPageState) string {
 	sections = append(sections, searchBox)
 	sections = append(sections, "")
 
-	// 过滤日志
-	filteredLogs := filterLogs(state.Logs, logLevels[state.LogLevel], state.FilterText)
+	// 过滤日志 (使用缓存的索引)
+	var filteredLogs []model.LogEntry
+	for _, idx := range state.FilteredLogIndices {
+		if idx >= 0 && idx < len(state.Logs) {
+			filteredLogs = append(filteredLogs, state.Logs[idx])
+		}
+	}
 
 	// 渲染统计信息
 	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
@@ -117,28 +123,7 @@ func renderLogSearchBox(filterText string, filterMode bool) string {
 	return label + input
 }
 
-// filterLogs 过滤日志（显示选定级别及更高级别的日志）
-func filterLogs(logs []model.LogEntry, level, filter string) []model.LogEntry {
-	var filtered []model.LogEntry
-	levelIndex := getLevelIndex(level)
 
-	for _, log := range logs {
-		// 只显示选定级别及更高级别的日志
-		logLevelIndex := getLevelIndex(log.Type)
-		if logLevelIndex < levelIndex {
-			continue
-		}
-
-		// 关键词过滤
-		if filter != "" && !strings.Contains(strings.ToLower(log.Payload), strings.ToLower(filter)) {
-			continue
-		}
-
-		filtered = append(filtered, log)
-	}
-
-	return filtered
-}
 
 // getLevelIndex 获取日志级别索引
 func getLevelIndex(level string) int {

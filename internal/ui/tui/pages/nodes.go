@@ -249,8 +249,20 @@ func RenderNodesPage(state NodesPageState) string {
 			// 延迟部分
 			delayStr := "      "
 			if exists && len(proxy.History) > 0 {
-				lastDelay := proxy.History[len(proxy.History)-1].Delay
-				if lastDelay > 0 {
+				lastEntry := proxy.History[len(proxy.History)-1]
+				lastDelay := lastEntry.Delay
+				if lastEntry.Error != "" || lastDelay < 0 {
+					// -1 或者显式 Error 表示测试失败
+					delayStr = " Error"
+					if i != state.SelectedProxy && name != currentNode {
+						delayColor := lipgloss.Color("#FF0000") // 红色表示错误
+						delayStr = lipgloss.NewStyle().Foreground(delayColor).Render(delayStr)
+					} else if i == state.SelectedProxy {
+						delayStr = selectedStyle.Render(delayStr)
+					} else if name == currentNode {
+						delayStr = activeStyle.Render(delayStr)
+					}
+				} else if lastDelay >= 0 {
 					delayStr = fmt.Sprintf("%4dms", lastDelay)
 					if i != state.SelectedProxy && name != currentNode {
 						// 只有非选中和非当前节点才单独着色

@@ -66,10 +66,9 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.TestAll):
 		if len(m.groupNames) > 0 && len(m.currentProxies) > 0 {
 			m.testing = true
-			m.testPending = len(m.currentProxies) // 设置待完成任务计数
 			m.testFailures = []string{}           // 清空之前的失败记录
 			m.showFailureDetail = false           // 重置详情显示
-			return m, testAllProxies(m.client, m.currentProxies, m.testURL, m.timeout)
+			return m, testAllProxies(m.proxySvc, m.currentProxies)
 		}
 
 	case msg.String() == "f":
@@ -476,6 +475,7 @@ func (m Model) updateLogsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// 切换到上一个日志级别
 		if m.logLevel > 0 {
 			m.logLevel--
+			m.updateFilteredLogs()
 		}
 		m.selectedLog = 0
 		m.logScrollTop = 0
@@ -484,6 +484,7 @@ func (m Model) updateLogsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// 切换到下一个日志级别
 		if m.logLevel < 4 {
 			m.logLevel++
+			m.updateFilteredLogs()
 		}
 		m.selectedLog = 0
 		m.logScrollTop = 0
@@ -498,6 +499,7 @@ func (m Model) updateLogsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.logs = nil
 		m.selectedLog = 0
 		m.logScrollTop = 0
+		m.updateFilteredLogs()
 		return m, nil
 
 	case key.Matches(msg, keys.Escape):
@@ -506,6 +508,7 @@ func (m Model) updateLogsPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.logFilter = ""
 			m.selectedLog = 0
 			m.logScrollTop = 0
+			m.updateFilteredLogs()
 		}
 	}
 
@@ -528,28 +531,26 @@ func (m Model) handleLogFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Backspace):
 		if len(m.logFilter) > 0 {
 			m.logFilter = m.logFilter[:len(m.logFilter)-1]
+			m.updateFilteredLogs()
 		}
 
 	default:
 		input := msg.String()
 		if len(input) == 1 && input[0] >= 32 && input[0] < 127 {
 			m.logFilter += input
+			m.updateFilteredLogs()
 		}
 	}
 
 	return m, nil
 }
 
-// getFilteredLogCount 获取过滤后的日志数量
-func (m Model) getFilteredLogCount() int {
-	if len(m.logs) == 0 {
-		return 0
-	}
-
-	count := 0
+// updateFilteredLogs 更新日志过滤缓存
+func (m *Model) updateFilteredLogs() {
+	var indices []int
 	levelIndex := m.logLevel
 
-	for _, log := range m.logs {
+	for i, log := range m.logs {
 		logLevelIndex := getLogLevelIndex(log.Type)
 
 		// 只统计当前级别及更高级别的日志
@@ -562,10 +563,15 @@ func (m Model) getFilteredLogCount() int {
 			continue
 		}
 
-		count++
+		indices = append(indices, i)
 	}
 
-	return count
+	m.filteredLogIndices = indices
+}
+
+// getFilteredLogCount 获取过滤后的日志数量
+func (m Model) getFilteredLogCount() int {
+	return len(m.filteredLogIndices)
 }
 
 // getLogLevelIndex 获取日志级别索引
@@ -617,6 +623,7 @@ func (m Model) updateRulesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ruleFilter = ""
 			m.selectedRule = 0
 			m.ruleScrollTop = 0
+			m.updateFilteredRules()
 		}
 	}
 
@@ -639,40 +646,49 @@ func (m Model) handleRuleFilterMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Backspace):
 		if len(m.ruleFilter) > 0 {
 			m.ruleFilter = m.ruleFilter[:len(m.ruleFilter)-1]
+			m.updateFilteredRules()
 		}
 
 	default:
 		input := msg.String()
 		if len(input) == 1 && input[0] >= 32 && input[0] < 127 {
 			m.ruleFilter += input
+			m.updateFilteredRules()
 		}
 	}
 
 	return m, nil
 }
 
-// getFilteredRuleCount 获取过滤后的规则数量
-func (m Model) getFilteredRuleCount() int {
+// updateFilteredRules 更新规则过滤缓存
+func (m *Model) updateFilteredRules() {
 	if len(m.rules) == 0 {
-		return 0
+		m.filteredRuleIndices = nil
+		return
 	}
 
 	if m.ruleFilter == "" {
-		return len(m.rules)
+		indices := make([]int, len(m.rules))
+		for i := range m.rules {
+			indices[i] = i
+		}
+		m.filteredRuleIndices = indices
+		return
 	}
 
-	// 分割关键词
+	var indices []int
 	keywords := strings.Fields(strings.ToLower(m.ruleFilter))
 	if len(keywords) == 0 {
-		return len(m.rules)
+		indices := make([]int, len(m.rules))
+		for i := range m.rules {
+			indices[i] = i
+		}
+		m.filteredRuleIndices = indices
+		return
 	}
 
-	count := 0
-	for _, rule := range m.rules {
-		// 构建搜索文本
+	for i, rule := range m.rules {
 		searchText := strings.ToLower(rule.Type + " " + rule.Payload + " " + rule.Proxy)
-
-		// 所有关键词都必须匹配
 		allMatch := true
 		for _, keyword := range keywords {
 			if !strings.Contains(searchText, keyword) {
@@ -682,9 +698,14 @@ func (m Model) getFilteredRuleCount() int {
 		}
 
 		if allMatch {
-			count++
+			indices = append(indices, i)
 		}
 	}
 
-	return count
+	m.filteredRuleIndices = indices
+}
+
+// getFilteredRuleCount 获取过滤后的规则数量
+func (m Model) getFilteredRuleCount() int {
+	return len(m.filteredRuleIndices)
 }

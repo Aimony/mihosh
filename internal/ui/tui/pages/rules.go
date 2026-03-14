@@ -41,8 +41,9 @@ type filteredRule struct {
 
 // RulesPageState 规则页面状态
 type RulesPageState struct {
-	Rules        []model.Rule // 规则列表
-	FilterText   string       // 搜索关键词
+	Rules               []model.Rule // 规则列表
+	FilteredRuleIndices []int        // 过滤后的规则索引
+	FilterText          string       // 搜索关键词
 	FilterMode   bool         // 是否处于过滤输入模式
 	SelectedRule int          // 选中的规则索引
 	ScrollTop    int          // 滚动偏移
@@ -59,8 +60,13 @@ func RenderRulesPage(state RulesPageState) string {
 	sections = append(sections, searchBox)
 	sections = append(sections, "")
 
-	// 过滤规则
-	filteredRules := filterRules(state.Rules, state.FilterText)
+	// 过滤规则 (使用缓存的索引)
+	var filteredRules []filteredRule
+	for _, idx := range state.FilteredRuleIndices {
+		if idx >= 0 && idx < len(state.Rules) {
+			filteredRules = append(filteredRules, filteredRule{Index: idx, Rule: state.Rules[idx]})
+		}
+	}
 
 	// 渲染统计信息
 	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
@@ -104,47 +110,7 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 	return label + input + hint
 }
 
-// filterRules 过滤规则 - 支持多关键词空格分隔，保留原始索引
-func filterRules(rules []model.Rule, filter string) []filteredRule {
-	var result []filteredRule
 
-	if filter == "" {
-		// 无过滤时返回所有规则并保留原始索引
-		for i, rule := range rules {
-			result = append(result, filteredRule{Index: i, Rule: rule})
-		}
-		return result
-	}
-
-	// 分割关键词
-	keywords := strings.Fields(strings.ToLower(filter))
-	if len(keywords) == 0 {
-		for i, rule := range rules {
-			result = append(result, filteredRule{Index: i, Rule: rule})
-		}
-		return result
-	}
-
-	for i, rule := range rules {
-		// 构建搜索文本
-		searchText := strings.ToLower(rule.Type + " " + rule.Payload + " " + rule.Proxy)
-
-		// 所有关键词都必须匹配 (AND 逻辑)
-		allMatch := true
-		for _, keyword := range keywords {
-			if !strings.Contains(searchText, keyword) {
-				allMatch = false
-				break
-			}
-		}
-
-		if allMatch {
-			result = append(result, filteredRule{Index: i, Rule: rule})
-		}
-	}
-
-	return result
-}
 
 // renderRuleList 渲染规则列表
 func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int) string {

@@ -14,6 +14,7 @@ type Proxy struct {
 type Delay struct {
 	Time  string `json:"time"`
 	Delay int    `json:"delay"`
+	Error string `json:"error,omitempty"`
 }
 
 // ProxiesResponse 代理列表响应
@@ -23,7 +24,8 @@ type ProxiesResponse struct {
 
 // DelayTestResponse 延迟测试响应
 type DelayTestResponse struct {
-	Delay int `json:"delay"`
+	Delay int    `json:"delay"`
+	Error string `json:"error,omitempty"`
 }
 
 // SelectProxyRequest 选择代理请求

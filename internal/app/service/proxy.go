@@ -1,6 +1,8 @@
 package service
 
 import (
+	"sync"
+
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 )
@@ -49,13 +51,25 @@ func (s *ProxyService) TestGroupDelay(group string) error {
 // TestAllProxies 批量测试代理延迟（返回每个代理的测试结果）
 func (s *ProxyService) TestAllProxies(proxies []string) map[string]int {
 	results := make(map[string]int)
-	for _, proxy := range proxies {
-		delay, err := s.TestProxyDelay(proxy)
-		if err != nil {
-			results[proxy] = 0 // 失败时记录为 0
-		} else {
-			results[proxy] = delay
-		}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, p := range proxies {
+		wg.Add(1)
+		go func(proxy string) {
+			defer wg.Done()
+			delay, err := s.TestProxyDelay(proxy)
+			
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				results[proxy] = -1 // 失败时记录为 -1
+			} else {
+				results[proxy] = delay
+			}
+		}(p)
 	}
+
+	wg.Wait()
 	return results
 }
