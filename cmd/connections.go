@@ -36,12 +36,16 @@ var connectionsCmd = &cobra.Command{
 		fmt.Println("\n连接列表:")
 
 		for _, conn := range conns.Connections {
+			chain := "DIRECT"
+			if len(conn.Chains) > 0 {
+				chain = conn.Chains[len(conn.Chains)-1]
+			}
 			fmt.Printf("  %s:%s -> %s:%s [%s]\n",
 				conn.Metadata.SourceIP,
 				conn.Metadata.SourcePort,
 				conn.Metadata.DestinationIP,
 				conn.Metadata.DestinationPort,
-				conn.Chains[len(conn.Chains)-1],
+				chain,
 			)
 		}
 	},
