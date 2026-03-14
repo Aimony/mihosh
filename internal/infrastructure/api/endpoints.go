@@ -25,7 +25,7 @@ func (c *Client) GetProxies() (map[string]model.Proxy, error) {
 
 // GetProxy 获取指定代理信息
 func (c *Client) GetProxy(name string) (*model.Proxy, error) {
-	data, err := c.DoRequest("GET", "/proxies/"+name, nil)
+	data, err := c.DoRequest("GET", "/proxies/"+url.PathEscape(name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (c *Client) GetProxy(name string) (*model.Proxy, error) {
 // SelectProxy 选择代理节点
 func (c *Client) SelectProxy(group, proxy string) error {
 	req := model.SelectProxyRequest{Name: proxy}
-	_, err := c.DoRequest("PUT", "/proxies/"+group, req)
+	_, err := c.DoRequest("PUT", "/proxies/"+url.PathEscape(group), req)
 	return err
 }
 
@@ -64,7 +64,8 @@ func (c *Client) TestProxyDelay(name, testURL string, timeout int) (int, error) 
 
 // TestGroupDelay 测试策略组内所有节点延迟
 func (c *Client) TestGroupDelay(group, testURL string, timeout int) error {
-	path := fmt.Sprintf("/group/%s/delay?url=%s&timeout=%d", group, testURL, timeout)
+	path := fmt.Sprintf("/proxies/%s/delay?url=%s&timeout=%d",
+		url.PathEscape(group), url.QueryEscape(testURL), timeout)
 	_, err := c.DoRequest("GET", path, nil)
 	return err
 }
@@ -110,7 +111,7 @@ func (c *Client) GetConnections() (*model.ConnectionsResponse, error) {
 
 // CloseConnection 关闭指定连接
 func (c *Client) CloseConnection(id string) error {
-	_, err := c.DoRequest("DELETE", "/connections/"+id, nil)
+	_, err := c.DoRequest("DELETE", "/connections/"+url.PathEscape(id), nil)
 	return err
 }
 

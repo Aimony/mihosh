@@ -239,6 +239,9 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 	// 创建WebSocket客户端
 	wsClient := api.NewWSClient(cfg.APIAddress, cfg.Secret)
 
+	// 创建WebSocket上下文（全局生命周期，不随页面切换销毁）
+	wsCtx, wsCancel := context.WithCancel(context.Background())
+
 	return Model{
 		client:      client,
 		config:      cfg,
@@ -251,6 +254,8 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		chartData:   model.NewChartData(60),
 		wsClient:    wsClient,
 		wsMsgChan:   make(chan interface{}, 100), // 带缓冲的消息通道
+		wsCtx:       wsCtx,                       // WebSocket全局上下文
+		wsCancel:    wsCancel,                     // WebSocket全局取消函数
 		logLevel:    1,                           // 默认info级别
 		siteTests:   model.DefaultSiteTests(),    // 初始化网站测试列表
 		proxyAddr:   cfg.ProxyAddress,            // 使用配置的代理地址
