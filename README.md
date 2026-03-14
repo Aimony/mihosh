@@ -1,7 +1,5 @@
 # Mihosh
 
-English | [简体中文](README_CN.md)
-
 A full-featured terminal UI (TUI) management tool for mihomo, allowing you to elegantly manage proxy nodes, monitor connections, and view logs directly from your terminal.
 
 ## Tech Stack
