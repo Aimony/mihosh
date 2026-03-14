@@ -31,6 +31,7 @@ type Model struct {
 	testURL           string
 	timeout           int
 	testing           bool
+	testPending       int // 批量测速剩余任务数
 	currentProxies    []string
 	currentPage       components.PageType
 	editMode          bool

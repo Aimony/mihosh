@@ -264,12 +264,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case testDoneMsg:
-		m.testing = false
-
 		// 记录测速失败的节点
 		if msg.err != nil {
 			failureInfo := fmt.Sprintf("%s: %s", msg.name, msg.err.Error())
 			m.testFailures = append(m.testFailures, failureInfo)
+		}
+
+		// 批量测速模式：递减计数器，归零时解锁
+		if m.testPending > 0 {
+			m.testPending--
+			if m.testPending == 0 {
+				m.testing = false
+			}
+		} else {
+			// 单节点测速：直接解锁
+			m.testing = false
 		}
 
 		return m, fetchProxies(m.client)
@@ -335,6 +344,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg
 		m.testing = false
+		m.testPending = 0
 	}
 
 	return m, nil

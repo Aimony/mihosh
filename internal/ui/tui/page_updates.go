@@ -66,8 +66,9 @@ func (m Model) updateNodesPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.TestAll):
 		if len(m.groupNames) > 0 && len(m.currentProxies) > 0 {
 			m.testing = true
-			m.testFailures = []string{} // 清空之前的失败记录
-			m.showFailureDetail = false // 重置详情显示
+			m.testPending = len(m.currentProxies) // 设置待完成任务计数
+			m.testFailures = []string{}           // 清空之前的失败记录
+			m.showFailureDetail = false           // 重置详情显示
 			return m, testAllProxies(m.client, m.currentProxies, m.testURL, m.timeout)
 		}
 
