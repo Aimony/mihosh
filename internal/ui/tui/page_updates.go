@@ -380,6 +380,8 @@ func (m Model) handleEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// 重新加载配置
 			cfg, _ := m.configSvc.LoadConfig()
 			m.config = cfg
+			// 同步更新运行时状态
+			m.proxyAddr = cfg.ProxyAddress
 			m.editMode = false
 			m.editValue = ""
 			m.editCursor = 0

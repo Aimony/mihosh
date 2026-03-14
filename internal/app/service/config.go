@@ -80,8 +80,10 @@ func (s *ConfigService) SetConfigValue(key, value string) error {
 			return fmt.Errorf("timeout 必须是数字: %v", err)
 		}
 		cfg.Timeout = timeout
+	case "proxy_address", "proxy-address":
+		cfg.ProxyAddress = value
 	default:
-		return fmt.Errorf("未知的配置项: %s (可用: api_address, secret, test_url, timeout)", key)
+		return fmt.Errorf("未知的配置项: %s (可用: api_address, secret, test_url, timeout, proxy_address)", key)
 	}
 
 	return config.Save(cfg)

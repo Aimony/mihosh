@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var SettingKeys = []string{"api-address", "secret", "test-url", "timeout"}
-var SettingLabels = []string{"API 地址", "密钥", "测速URL", "超时(ms)"}
+var SettingKeys = []string{"api-address", "secret", "test-url", "timeout", "proxy-address"}
+var SettingLabels = []string{"API 地址", "密钥", "测速URL", "超时(ms)", "代理地址"}
 
 // SettingsPageState 设置页面状态
 type SettingsPageState struct {
@@ -36,6 +36,8 @@ func GetSettingValue(cfg *config.Config, index int) string {
 		return cfg.TestURL
 	case 3:
 		return fmt.Sprintf("%d", cfg.Timeout)
+	case 4:
+		return cfg.ProxyAddress
 	}
 	return ""
 }
