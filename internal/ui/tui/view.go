@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"github.com/aimony/mihosh/internal/ui/styles"
 	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -17,34 +18,63 @@ func (m Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpView)
 	}
 
-	// 渲染标签栏
-	tabs := components.RenderTabs(m.currentPage, m.width)
-
-	// 渲染内容区域
-	var content string
-	switch m.currentPage {
-	case components.PageNodes:
-		content = m.renderNodesPage()
-	case components.PageConnections:
-		content = m.renderConnectionsPage()
-	case components.PageSettings:
-		content = m.renderSettingsPage()
-	case components.PageLogs:
-		content = m.renderLogsPage()
-	case components.PageRules:
-		content = m.renderRulesPage()
+	// ── 布局参数 ──
+	sidebarRenderedWidth := components.SidebarWidth + 1 // 含右边框 │
+	statusBarHeight := 2                                // 分隔线 + 信息行
+	contentHeight := m.height - statusBarHeight
+	if contentHeight < 5 {
+		contentHeight = 5
+	}
+	mainWidth := m.width - sidebarRenderedWidth
+	if mainWidth < 20 {
+		mainWidth = 20
 	}
 
-	// 渲染状态栏
-	statusBar := components.RenderStatusBar(m.width, m.err, m.testing)
+	// ── 侧边栏 ──
+	sidebar := components.RenderSidebar(m.currentPage, contentHeight)
 
-	// 组合布局
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		tabs,
+	// ── 渲染当前页面内容 ──
+	var pageContent string
+	switch m.currentPage {
+	case components.PageNodes:
+		pageContent = m.renderNodesPage()
+	case components.PageConnections:
+		pageContent = m.renderConnectionsPage()
+	case components.PageSettings:
+		pageContent = m.renderSettingsPage()
+	case components.PageLogs:
+		pageContent = m.renderLogsPage()
+	case components.PageRules:
+		pageContent = m.renderRulesPage()
+	}
+
+	// ── 主面板 ──
+	pageTitle := components.GetPageTitle(m.currentPage)
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(styles.ColorPrimary).
+		Bold(true).
+		Padding(0, 1)
+
+	mainPaneStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.ColorBorder).
+		Width(mainWidth - 2).
+		Height(contentHeight - 2)
+
+	mainContent := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(pageTitle),
 		"",
-		content,
-		"",
-		statusBar,
+		pageContent,
 	)
+
+	mainPane := mainPaneStyle.Render(mainContent)
+
+	// ── 横向拼接：侧边栏 | 主面板 ──
+	upper := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainPane)
+
+	// ── 底部状态栏 ──
+	statusBar := components.RenderStatusBar(m.width, m.err, m.testing, m.chartData)
+
+	return lipgloss.JoinVertical(lipgloss.Left, upper, statusBar)
 }

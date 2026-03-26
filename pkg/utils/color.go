@@ -2,18 +2,16 @@ package utils
 
 import "github.com/charmbracelet/lipgloss"
 
-// GetDelayColor 根据延迟获取颜色
+// GetDelayColor 根据延迟获取颜色 (Tokyo Night Deep 语义色)
 func GetDelayColor(delay int) lipgloss.Color {
 	switch {
 	case delay == 0:
-		return lipgloss.Color("240") // 灰色 - 未测试
+		return lipgloss.Color("#565f89") // 灰色 — 未测试
 	case delay < 100:
-		return lipgloss.Color("10") // 绿色 - 优秀
-	case delay < 200:
-		return lipgloss.Color("11") // 黄色 - 良好
-	case delay < 500:
-		return lipgloss.Color("208") // 橙色 - 一般
+		return lipgloss.Color("#9ECE6A") // 绿色 — 优秀
+	case delay < 300:
+		return lipgloss.Color("#E0AF68") // 黄色 — 良好
 	default:
-		return lipgloss.Color("9") // 红色 - 较差
+		return lipgloss.Color("#F7768E") // 红色 — 较差/超时
 	}
 }

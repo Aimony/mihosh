@@ -2,48 +2,60 @@ package styles
 
 import "github.com/charmbracelet/lipgloss"
 
-// 颜色定义
+// ============================================================
+//  Tokyo Night Deep — 全局调色板
+// ============================================================
+
+// 表面 / 背景色
 var (
-	ColorPrimary   = lipgloss.Color("#00BFFF")
-	ColorSecondary = lipgloss.Color("#888")
-	ColorSuccess   = lipgloss.Color("#00FF00")
-	ColorWarning   = lipgloss.Color("#FFFF00")
-	ColorDanger    = lipgloss.Color("#FF0000")
-	ColorOrange    = lipgloss.Color("#FFA500")
-	ColorGray      = lipgloss.Color("#666")
-	ColorDarkBg    = lipgloss.Color("#333")
+	ColorBackground = lipgloss.Color("#1A1B26") // 深蓝灰背景
+	ColorSurface    = lipgloss.Color("#24283b") // 稍亮的面板背景
+	ColorOverlay    = lipgloss.Color("#414868") // 弹出层 / 悬浮层
 )
 
-// Tab 样式
+// 主强调色
 var (
-	ActiveTabStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary).
-			Background(ColorDarkBg).
-			Padding(0, 2)
-
-	InactiveTabStyle = lipgloss.NewStyle().
-				Foreground(ColorSecondary).
-				Padding(0, 2)
+	ColorPrimary   = lipgloss.Color("#7AA2F7") // 现代蓝
+	ColorSecondary = lipgloss.Color("#BB9AF7") // 紫色 — 选中态
 )
+
+// 语义状态色
+var (
+	ColorSuccess = lipgloss.Color("#9ECE6A") // 延迟 <100ms
+	ColorWarning = lipgloss.Color("#E0AF68") // 延迟 100-300ms
+	ColorDanger  = lipgloss.Color("#F7768E") // 超时 / 离线
+)
+
+// 中性色
+var (
+	ColorBorder = lipgloss.Color("#414868") // 边框
+	ColorGray   = lipgloss.Color("#565f89") // 次要文字
+	ColorDim    = lipgloss.Color("#3b4261") // 最暗文字 / 禁用
+	ColorText   = lipgloss.Color("#c0caf5") // 正文
+	ColorBright = lipgloss.Color("#ffffff") // 高亮文字
+)
+
+// ============================================================
+//  公共样式预设
+// ============================================================
 
 // 状态栏样式
 var (
 	StatusStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
+			Foreground(ColorGray)
 
 	ErrorStyle = lipgloss.NewStyle().
 			Foreground(ColorDanger)
 
 	TestingStyle = lipgloss.NewStyle().
-			Foreground(ColorOrange)
+			Foreground(ColorWarning)
 )
 
-// 分隔线样式
+// 分隔线
 var DividerStyle = lipgloss.NewStyle().
-	Foreground(ColorGray)
+	Foreground(ColorBorder)
 
-// 标题样式
+// 标题
 var (
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -51,36 +63,36 @@ var (
 			Padding(0, 1)
 
 	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
+			Foreground(ColorGray)
 )
 
-// 列表样式
+// 列表
 var (
 	SelectedItemStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
+				Foreground(ColorSecondary).
 				Bold(true)
 
 	NormalItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFF"))
+			Foreground(ColorText)
 
 	DisabledItemStyle = lipgloss.NewStyle().
-				Foreground(ColorSecondary)
+				Foreground(ColorGray)
 )
 
-// 表格样式
+// 表格
 var (
 	TableHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(ColorPrimary)
 
 	TableRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFF"))
+			Foreground(ColorText)
 
 	TableAltRowStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#DDD"))
+				Foreground(lipgloss.Color("#a9b1d6"))
 )
 
-// 输入框样式
+// 输入框
 var (
 	InputStyle = lipgloss.NewStyle().
 			Foreground(ColorPrimary).
@@ -90,5 +102,5 @@ var (
 
 	InputLabelStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorSecondary)
+			Foreground(ColorGray)
 )
