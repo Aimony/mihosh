@@ -41,6 +41,29 @@ func padString(s string, targetWidth int) string {
 	return s + strings.Repeat(" ", targetWidth-currentWidth)
 }
 
+// renderScrollbar 渲染垂直滚动条
+func renderScrollbar(height, total, scrollTop, currentIdx int) string {
+	if total <= height {
+		return " "
+	}
+
+	// 计算滚动块占据的行数比例
+	barHeight := float64(height) * float64(height) / float64(total)
+	if barHeight < 1 {
+		barHeight = 1
+	}
+
+	// 计算滚动块起始位置比例
+	barStart := float64(scrollTop) * float64(height) / float64(total)
+
+	// 判断当前行 (currentIdx) 是否在渲染块内
+	// currentIdx 是相对于列表可见区域的索引 (0 到 height-1)
+	if float64(currentIdx) >= barStart && float64(currentIdx) < barStart+barHeight {
+		return "┃"
+	}
+	return "│"
+}
+
 // RenderNodesPage 渲染节点管理页面
 func RenderNodesPage(state NodesPageState) string {
 	headerStyle := lipgloss.NewStyle().
@@ -115,11 +138,6 @@ func RenderNodesPage(state NodesPageState) string {
 			groupScrollTop = state.SelectedGroup - groupMaxLines + 1
 		}
 
-		// 显示滚动指示（在表头上方）
-		if groupScrollTop > 0 {
-			groupList = dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项", groupScrollTop)) + "\n"
-		}
-
 		// 渲染表头
 		tableHeaderStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888")).
@@ -147,7 +165,8 @@ func RenderNodesPage(state NodesPageState) string {
 				prefix = "► "
 			}
 
-			line := fmt.Sprintf("%s%s │ %s │ %s",
+			// 计算这一行的内容
+			content := fmt.Sprintf("%s%s │ %s │ %s",
 				prefix,
 				padString(name, maxNameLen),
 				padString(group.Type, maxTypeLen),
@@ -155,19 +174,16 @@ func RenderNodesPage(state NodesPageState) string {
 			)
 
 			if i == state.SelectedGroup {
-				line = selectedStyle.Render(line)
+				content = selectedStyle.Render(content)
 			} else if group.Now != "" {
-				line = activeStyle.Render(line)
+				content = activeStyle.Render(content)
 			}
 
-			lines = append(lines, line)
+			// 追加滚动条
+			bar := renderScrollbar(groupMaxLines, len(state.GroupNames), groupScrollTop, i-groupScrollTop)
+			lines = append(lines, content+" "+dimStyle.Render(bar))
 		}
 		groupList += strings.Join(lines, "\n")
-
-		// 显示滚动指示（下方）
-		if endIdx < len(state.GroupNames) {
-			groupList += "\n" + dimStyle.Render(fmt.Sprintf("  ↓ 还有 %d 项", len(state.GroupNames)-endIdx))
-		}
 	}
 
 	// 节点列表
@@ -203,11 +219,6 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 		if state.SelectedProxy >= proxyScrollTop+proxyMaxLines {
 			proxyScrollTop = state.SelectedProxy - proxyMaxLines + 1
-		}
-
-		// 显示滚动指示（在表头上方）
-		if proxyScrollTop > 0 {
-			proxyList = dimStyle.Render(fmt.Sprintf("  ↑ 还有 %d 项", proxyScrollTop)) + "\n"
 		}
 
 		// 渲染表头
@@ -288,14 +299,11 @@ func RenderNodesPage(state NodesPageState) string {
 			}
 
 			line := prefix + namePart + " │ " + delayStr + " │ " + status
-			lines = append(lines, line)
+			// 追加滚动条
+			bar := renderScrollbar(proxyMaxLines, len(state.CurrentProxies), proxyScrollTop, i-proxyScrollTop)
+			lines = append(lines, line+" "+dimStyle.Render(bar))
 		}
 		proxyList += strings.Join(lines, "\n")
-
-		// 显示滚动指示（下方）
-		if endIdx < len(state.CurrentProxies) {
-			proxyList += "\n" + dimStyle.Render(fmt.Sprintf("  ↓ 还有 %d 项", len(state.CurrentProxies)-endIdx))
-		}
 	}
 
 	helpText := lipgloss.NewStyle().
@@ -326,10 +334,10 @@ func RenderNodesPage(state NodesPageState) string {
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		headerStyle.Width(state.Width-4).Render("策略组"),
+		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
 		groupList,
 		"",
-		headerStyle.Width(state.Width-4).Render("节点列表"),
+		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
 		"",
 		helpText,
