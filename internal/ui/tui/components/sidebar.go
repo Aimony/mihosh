@@ -82,3 +82,47 @@ func GetPageTitle(page PageType) string {
 	}
 	return ""
 }
+
+// SidebarMenuHeight 获取侧边栏菜单区域的高度（不含边框）
+func SidebarMenuHeight(height int) int {
+	// 侧边栏有5个菜单项，每个菜单项占1行，项之间有4个空行
+	// 菜单项: 节点(0), 连接(1), 日志(2), 规则(3), 设置(4)
+	// 总共占据: 5 + 4 = 9 行
+	return 9
+}
+
+// GetClickedPage 获取点击位置对应的页面类型
+// x, y 是点击的绝对坐标
+// 返回对应的页面类型，如果点击不在菜单区域返回 -1
+func GetClickedPage(x, y int) PageType {
+	// 侧边栏宽度为6（不含右边框），点击的X坐标应该 < 6
+	if x < 0 || x >= SidebarWidth {
+		return -1
+	}
+
+	// 每个菜单项占1行，项之间有1个空行
+	// 节点在 y=0, 连接在 y=2, 日志在 y=4, 规则在 y=6, 设置在 y=8
+	menuY := y
+	menuHeight := SidebarMenuHeight(0)
+
+	if menuY < 0 || menuY >= menuHeight {
+		return -1
+	}
+
+	// 计算点击的是哪个菜单项
+	// 节点: 0, 连接: 1, 日志: 2, 规则: 3, 设置: 4
+	// 空行位置: 1, 3, 5, 7
+	clickedPage := menuY / 2
+
+	// 如果点击的是空行位置，则无效
+	if menuY%2 == 1 {
+		return -1
+	}
+
+	// 确保不超过页面数量
+	if clickedPage >= int(PageCount) {
+		return -1
+	}
+
+	return PageType(clickedPage)
+}

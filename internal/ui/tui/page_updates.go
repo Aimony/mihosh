@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/aimony/mihosh/internal/ui/tui/pages"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -708,4 +709,100 @@ func (m *Model) updateFilteredRules() {
 // getFilteredRuleCount 获取过滤后的规则数量
 func (m Model) getFilteredRuleCount() int {
 	return len(m.filteredRuleIndices)
+}
+
+// handleMouseScroll 处理鼠标滚轮滚动
+func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
+	// 如果在侧边栏区域滚动，则切换页面
+	if x >= 0 && x < components.SidebarWidth {
+		if up {
+			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
+		} else {
+			m.currentPage = (m.currentPage + 1) % components.PageCount
+		}
+		return m, m.onPageChange()
+	}
+
+	// 否则根据当前页面滚动内容
+	switch m.currentPage {
+	case components.PageNodes:
+		if up {
+			if m.selectedProxy > 0 {
+				m.selectedProxy--
+				if m.selectedProxy < m.proxyScrollTop {
+					m.proxyScrollTop = m.selectedProxy
+				}
+			}
+		} else {
+			if m.selectedProxy < len(m.currentProxies)-1 {
+				m.selectedProxy++
+			}
+		}
+	case components.PageConnections:
+		// 详情模式滚动
+		if m.connDetailMode {
+			if up {
+				if m.connDetailScroll > 0 {
+					m.connDetailScroll--
+				}
+			} else {
+				m.connDetailScroll++
+			}
+			return m, nil
+		}
+		// 列表滚动
+		count := m.getFilteredConnCount()
+		if up {
+			if m.selectedConn > 0 {
+				m.selectedConn--
+				if m.selectedConn < m.connScrollTop {
+					m.connScrollTop = m.selectedConn
+				}
+			}
+		} else {
+			if m.selectedConn < count-1 {
+				m.selectedConn++
+			}
+		}
+	case components.PageLogs:
+		count := m.getFilteredLogCount()
+		if up {
+			if m.selectedLog > 0 {
+				m.selectedLog--
+				if m.selectedLog < m.logScrollTop {
+					m.logScrollTop = m.selectedLog
+				}
+			}
+		} else {
+			if m.selectedLog < count-1 {
+				m.selectedLog++
+			}
+		}
+	case components.PageRules:
+		count := m.getFilteredRuleCount()
+		if up {
+			if m.selectedRule > 0 {
+				m.selectedRule--
+				if m.selectedRule < m.ruleScrollTop {
+					m.ruleScrollTop = m.selectedRule
+				}
+			}
+		} else {
+			if m.selectedRule < count-1 {
+				m.selectedRule++
+			}
+		}
+	case components.PageSettings:
+		if up {
+			if m.selectedSetting > 0 {
+				m.selectedSetting--
+			}
+		} else {
+			if m.selectedSetting < len(pages.SettingKeys)-1 {
+				m.selectedSetting++
+			}
+		}
+	}
+
+	return m, nil
 }

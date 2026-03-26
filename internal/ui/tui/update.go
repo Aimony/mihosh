@@ -52,6 +52,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
+	case tea.MouseMsg:
+		// 处理鼠标点击和滚轮事件
+		switch msg.Type {
+		case tea.MouseLeft:
+			// 获取侧边栏菜单区域
+			statusBarHeight := 2
+			contentHeight := m.height - statusBarHeight
+			if contentHeight < 5 {
+				contentHeight = 5
+			}
+
+			// 检查点击是否在侧边栏区域
+			if msg.X >= 0 && msg.X < components.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
+				clickedPage := components.GetClickedPage(msg.X, msg.Y)
+				if clickedPage >= 0 && clickedPage < components.PageCount {
+					m.currentPage = clickedPage
+					return m, m.onPageChange()
+				}
+			}
+		case tea.MouseWheelUp:
+			return m.handleMouseScroll(true, msg.X)
+		case tea.MouseWheelDown:
+			return m.handleMouseScroll(false, msg.X)
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		// 帮助页面弹窗处理
 		if m.showHelp {
