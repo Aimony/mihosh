@@ -112,14 +112,12 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 
 
 
-// renderRuleList 渲染规则列表
+// renderRuleList 渲染规则列表（含整体垂直滚动条）
 func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int) string {
 	if len(rules) == 0 {
 		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 		return emptyStyle.Render("暂无规则")
 	}
-
-	var lines []string
 
 	// 调整滚动位置确保选中项可见
 	if selectedIdx < scrollTop {
@@ -134,14 +132,78 @@ func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, widt
 		endIdx = len(rules)
 	}
 
+	// 渲染规则行（预留滚动条宽度 2）
+	listWidth := width - 2
+	var lines []string
 	for i := scrollTop; i < endIdx; i++ {
 		fr := rules[i]
-		// 使用原始索引显示序号
-		line := renderRuleEntry(fr.Rule, fr.Index, i == selectedIdx, width)
+		line := renderRuleEntry(fr.Rule, fr.Index, i == selectedIdx, listWidth)
 		lines = append(lines, line)
 	}
+	listStr := strings.Join(lines, "\n")
 
+	// 构建整体垂直滚动条
+	scrollbarStr := buildScrollbar(maxLines, len(rules), scrollTop)
+
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+	thumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
+
+	// 计算滚动块的起止行
+	thumbStart, thumbEnd := calcThumbRange(maxLines, len(rules), scrollTop)
+
+	var barLines []string
+	for i, ch := range strings.Split(scrollbarStr, "\n") {
+		if i >= thumbStart && i < thumbEnd {
+			barLines = append(barLines, thumbStyle.Render(ch))
+		} else {
+			barLines = append(barLines, dimStyle.Render(ch))
+		}
+	}
+	barStr := strings.Join(barLines, "\n")
+
+	// 仅在内容超出可视区域时显示滚动条
+	if len(rules) <= maxLines {
+		return listStr
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, listStr, " "+barStr)
+}
+
+// buildScrollbar 构建高度为 viewHeight 的滚动条字符串（每行一个字符，换行连接）
+func buildScrollbar(viewHeight, total, scrollTop int) string {
+	lines := make([]string, viewHeight)
+	for i := range lines {
+		lines[i] = "│"
+	}
+	// 用实心块覆盖滑块区域
+	start, end := calcThumbRange(viewHeight, total, scrollTop)
+	for i := start; i < end; i++ {
+		if i < viewHeight {
+			lines[i] = "┃"
+		}
+	}
 	return strings.Join(lines, "\n")
+}
+
+// calcThumbRange 计算滑块在滚动条中的起止行（左闭右开）
+func calcThumbRange(viewHeight, total, scrollTop int) (start, end int) {
+	if total <= 0 {
+		return 0, viewHeight
+	}
+	thumbSize := float64(viewHeight) * float64(viewHeight) / float64(total)
+	if thumbSize < 1 {
+		thumbSize = 1
+	}
+	thumbStart := float64(scrollTop) * float64(viewHeight) / float64(total)
+	start = int(thumbStart)
+	end = start + int(thumbSize+0.5)
+	if end > viewHeight {
+		end = viewHeight
+	}
+	if start >= end {
+		end = start + 1
+	}
+	return
 }
 
 // renderRuleEntry 渲染单条规则
