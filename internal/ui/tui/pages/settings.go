@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -43,7 +44,7 @@ func GetSettingValue(cfg *config.Config, index int) string {
 }
 
 // RenderSettingsPage 渲染设置页面
-func RenderSettingsPage(state SettingsPageState) string {
+func RenderSettingsPage(state SettingsPageState, width, height int) string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#FFD700"))
@@ -112,13 +113,14 @@ func RenderSettingsPage(state SettingsPageState) string {
 			Render("[↑/↓]选择 [Enter]编辑")
 	}
 
-	return lipgloss.JoinVertical(
+	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		headerStyle.Render("设置"),
 		"",
 		strings.Join(lines, "\n"),
-		"",
-		"",
-		helpText,
 	)
+
+	contentLines := strings.Count(mainContent, "\n") + 1
+	footer := common.RenderFooter(width, height, contentLines, helpText)
+	return mainContent + footer
 }

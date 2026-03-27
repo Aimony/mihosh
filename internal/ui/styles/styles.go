@@ -103,4 +103,9 @@ var (
 	InputLabelStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(ColorGray)
+
+	// 底部页脚样式
+	FooterStyle = lipgloss.NewStyle().
+			Foreground(ColorGray).
+			Padding(0, 1)
 )

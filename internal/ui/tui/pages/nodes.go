@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -84,8 +85,8 @@ func RenderNodesPage(state NodesPageState) string {
 		Foreground(lipgloss.Color("#666"))
 
 	// 计算可用高度（减去标签栏、状态栏、标题、帮助提示等固定区域）
-	// 标签栏2行 + 状态栏2行 + 策略组标题2行 + 节点标题2行 + 帮助提示1行 + 间隔3行 = 约12行
-	fixedLines := 12
+	// 策略组标题1行 + 节点标题1行 + 列表内表头2行 + 间隔2行 + 底部提示1行 = 约7行
+	fixedLines := 8
 	availableHeight := state.Height - fixedLines
 	if availableHeight < 10 {
 		availableHeight = 10
@@ -332,7 +333,7 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 	}
 
-	return lipgloss.JoinVertical(
+	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
 		groupList,
@@ -340,7 +341,10 @@ func RenderNodesPage(state NodesPageState) string {
 		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
 		"",
-		helpText,
 		failureInfo,
 	)
+
+	contentLines := strings.Count(mainContent, "\n") + 1
+	footer := common.RenderFooter(state.Width, state.Height, contentLines, helpText)
+	return mainContent + footer
 }

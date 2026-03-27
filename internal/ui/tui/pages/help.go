@@ -1,11 +1,14 @@
 package pages
 
 import (
+	"strings"
+
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // RenderHelpPage 渲染帮助页面（支持宽度自适应）
-func RenderHelpPage(width int) string {
+func RenderHelpPage(width, height int) string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#FFD700"))
@@ -133,11 +136,11 @@ func RenderHelpPage(width int) string {
 	// 标题
 	title := titleStyle.Render("Mihosh 使用帮助")
 
-	// 提示
-	tip := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		MarginTop(1).
-		Render("💡 提示: 所有命令行功能都可以在这个TUI界面中完成！")
-
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", content, tip)
+	mainContent := lipgloss.JoinVertical(lipgloss.Left, title, "", content)
+	
+	contentLines := strings.Count(mainContent, "\n") + 1
+	helpText := "💡 提示: 所有命令行功能都可以在这个TUI界面中完成！ [?]返回"
+	
+	footer := common.RenderFooter(width, height, contentLines, helpText)
+	return mainContent + footer
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -77,8 +78,8 @@ func RenderRulesPage(state RulesPageState) string {
 	sections = append(sections, statsStyle.Render(stats))
 	sections = append(sections, "")
 
-	// 计算可显示的规则行数
-	availableHeight := state.Height - 10
+	// 计算可显示的规则行数 (搜索框 + 统计 + 间隔)
+	availableHeight := state.Height - 6
 	if availableHeight < 5 {
 		availableHeight = 5
 	}
@@ -87,7 +88,13 @@ func RenderRulesPage(state RulesPageState) string {
 	ruleList := renderRuleList(filteredRules, state.SelectedRule, state.ScrollTop, availableHeight, state.Width)
 	sections = append(sections, ruleList)
 
-	return strings.Join(sections, "\n")
+	// 统一底部的提示信息
+	helpText := "[↑/↓]选择 [/]搜索 [Esc]清除搜索 [r]刷新"
+	mainContent := strings.Join(sections, "\n")
+	contentLines := strings.Count(mainContent, "\n") + 1
+	
+	footer := common.RenderFooter(state.Width, state.Height, contentLines, helpText)
+	return mainContent + footer
 }
 
 // renderRuleSearchBox 渲染搜索框

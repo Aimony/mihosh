@@ -21,6 +21,8 @@ func (m Model) renderNodesPage() string {
 		GroupScrollTop:    m.groupScrollTop,
 		ProxyScrollTop:    m.proxyScrollTop,
 	}
+	pageHeight := m.height - 8 // 减去状态栏、边框、标题等占用
+	state.Height = pageHeight
 	return pages.RenderNodesPage(state)
 }
 
@@ -44,6 +46,8 @@ func (m Model) renderConnectionsPage() string {
 		SiteTests:          m.siteTests,          // 网站测速数据
 		SelectedSiteTest:   m.selectedSiteTest,   // 选中的网站索引
 	}
+	pageHeight := m.height - 8 // 减去状态栏、边框、标题等占用
+	state.Height = pageHeight
 	return pages.RenderConnectionsPage(state)
 }
 
@@ -56,12 +60,14 @@ func (m Model) renderSettingsPage() string {
 		EditValue:       m.editValue,
 		EditCursor:      m.editCursor,
 	}
-	return pages.RenderSettingsPage(state)
+	pageHeight := m.height - 8 // 减去状态栏、边框、标题等占用
+	return pages.RenderSettingsPage(state, m.width, pageHeight)
 }
 
 // renderHelpPage 渲染帮助页面
 func (m Model) renderHelpPage() string {
-	return pages.RenderHelpPage(m.width)
+	// 帮助页面作为一个弹窗，可以使用较大的宽度，但高度仍需限制在终端范围内
+	return pages.RenderHelpPage(m.width, m.height)
 }
 
 // renderLogsPage 渲染日志页面
@@ -76,7 +82,7 @@ func (m Model) renderLogsPage() string {
 		ScrollTop:     m.logScrollTop,
 		HScrollOffset: m.logHScrollOffset,
 		Width:         m.width,
-		Height:        m.height,
+		Height:        m.height - 8, // 减去状态栏、边框、标题等占用
 	}
 	return pages.RenderLogsPage(state)
 }
@@ -91,7 +97,7 @@ func (m Model) renderRulesPage() string {
 		SelectedRule: m.selectedRule,
 		ScrollTop:    m.ruleScrollTop,
 		Width:        m.width,
-		Height:       m.height,
+		Height:       m.height - 8, // 减去状态栏、边框、标题等占用
 	}
 	return pages.RenderRulesPage(state)
 }

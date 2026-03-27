@@ -6,6 +6,7 @@ import (
 
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/ui/styles"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/ui/tui/components/connections"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
@@ -102,8 +103,8 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	// 表头
 	tableHeader := connections.RenderTableHeader(headerStyle)
 
-	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Footer + Help)
-	usedLines := 10 // 基础占用行数
+	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Footer-Space)
+	usedLines := 8 // 基础占用行数 (含底部页脚 1 行)
 
 	// 加上图表和测试区域的行数
 	if state.ViewMode == 0 {
@@ -214,10 +215,13 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	content = append(content, tableHeader)
 	content = append(content, styles.DividerStyle.Render(strings.Repeat("─", min(state.Width-2, 100))))
 	content = append(content, strings.Join(rows, "\n"))
-	content = append(content, "")
-	content = append(content, helpText)
 
-	return strings.Join(content, "\n")
+	// 统一底部的提示信息，固定到底部
+	mainContent := strings.Join(content, "\n")
+	contentLines := strings.Count(mainContent, "\n") + 1
+	
+	footer := common.RenderFooter(state.Width, state.Height, contentLines, helpText)
+	return mainContent + footer
 }
 
 // filterConnections 过滤连接
