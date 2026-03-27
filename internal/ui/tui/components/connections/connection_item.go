@@ -5,15 +5,16 @@ import (
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
+	"strings"
 )
 
 // 表格列宽配置
 const (
 	ColWidthClose = 4
-	ColWidthHost  = 22
+	ColWidthHost  = 30
 	ColWidthType  = 12
-	ColWidthRule  = 16
-	ColWidthChain = 16
+	ColWidthRule  = 18
+	ColWidthChain = 20
 	ColWidthDL    = 10
 	ColWidthUL    = 10
 	ColWidthTime  = 8
@@ -21,17 +22,16 @@ const (
 
 // RenderTableHeader 渲染表头
 func RenderTableHeader(style lipgloss.Style) string {
-	header := fmt.Sprintf(
-		"%-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s",
-		ColWidthClose, "",
-		ColWidthHost, "主机",
-		ColWidthType, "类型",
-		ColWidthRule, "规则",
-		ColWidthChain, "代理链",
-		ColWidthDL, "↓下载",
-		ColWidthUL, "↑上传",
-		ColWidthTime, "时长",
-	)
+	header := strings.Join([]string{
+		alignCenter("", ColWidthClose),
+		alignLeft("主机", ColWidthHost),
+		alignLeft("类型", ColWidthType),
+		alignLeft("规则", ColWidthRule),
+		alignLeft("代理链", ColWidthChain),
+		alignRight("↓下载", ColWidthDL),
+		alignRight("↑上传", ColWidthUL),
+		alignRight("时长", ColWidthTime),
+	}, " ")
 	return style.Render(header)
 }
 
@@ -69,18 +69,16 @@ func RenderConnectionRow(conn model.Connection, style lipgloss.Style, prefix str
 	// 连接时长
 	duration := utils.FormatDuration(conn.Start)
 
-	row := fmt.Sprintf(
-		"%s%s %s %s %s %s %s %s %s",
-		prefix,
-		utils.PadString("×", ColWidthClose-2),
-		utils.PadString(host, ColWidthHost),
-		utils.PadString(connType, ColWidthType),
-		utils.PadString(rule, ColWidthRule),
-		utils.PadString(chain, ColWidthChain),
-		utils.PadString(download, ColWidthDL),
-		utils.PadString(upload, ColWidthUL),
-		utils.PadString(duration, ColWidthTime),
-	)
+	row := prefix + strings.Join([]string{
+		alignCenter("×", ColWidthClose),
+		alignLeft(host, ColWidthHost),
+		alignLeft(connType, ColWidthType),
+		alignLeft(rule, ColWidthRule),
+		alignLeft(chain, ColWidthChain),
+		alignRight(download, ColWidthDL),
+		alignRight(upload, ColWidthUL),
+		alignRight(duration, ColWidthTime),
+	}, " ")
 
 	return style.Render(row)
 }
@@ -89,4 +87,29 @@ func RenderConnectionRow(conn model.Connection, style lipgloss.Style, prefix str
 // 暴露给外部使用，虽然 utils 中已有，但在 connections 包内部可能也需要
 func TruncateString(s string, maxWidth int) string {
 	return utils.TruncateString(s, maxWidth)
+}
+
+func alignLeft(s string, width int) string {
+	return utils.PadString(utils.TruncateString(s, width), width)
+}
+
+func alignRight(s string, width int) string {
+	s = utils.TruncateString(s, width)
+	padding := width - utils.DisplayWidth(s)
+	if padding <= 0 {
+		return s
+	}
+	return strings.Repeat(" ", padding) + s
+}
+
+func alignCenter(s string, width int) string {
+	s = utils.TruncateString(s, width)
+	padding := width - utils.DisplayWidth(s)
+	if padding <= 0 {
+		return s
+	}
+
+	left := padding / 2
+	right := padding - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
 }

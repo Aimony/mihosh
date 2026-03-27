@@ -32,3 +32,4 @@ mihosh-*
 deploy.sh
 deploy.ps1
 docs/*
+.gocache/*
