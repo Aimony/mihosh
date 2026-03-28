@@ -45,30 +45,51 @@ func GetSettingValue(cfg *config.Config, index int) string {
 
 // RenderSettingsPage 渲染设置页面
 func RenderSettingsPage(state SettingsPageState, width, height int) string {
+	// 定义基础样式
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFD700"))
+		Foreground(lipgloss.Color("#FFD700")).
+		MarginBottom(1)
 
-	selectedStyle := lipgloss.NewStyle().
+	// 容器统一样式，整体偏移
+	containerStyle := lipgloss.NewStyle().
+		MarginLeft(2).
+		MarginTop(1)
+
+	// 标签样式：固定宽度、左侧无填充、文字靠右对齐
+	labelStyle := lipgloss.NewStyle().
+		Width(12).
+		Align(lipgloss.Right).
+		Foreground(lipgloss.Color("#888888")).
+		PaddingRight(2)
+
+	// 选中状态下的标签
+	selectedLabelStyle := labelStyle.Copy().
 		Foreground(lipgloss.Color("#00FF00")).
 		Bold(true)
 
-	normalStyle := lipgloss.NewStyle().
+	// 普通行的值样式
+	valueStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF"))
 
-	editStyle := lipgloss.NewStyle().
+	// 选中项的行样式：整行背景色
+	selectedRowStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#333333"))
+
+	// 编辑模式的值样式
+	editBoxStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFF00")).
-		Background(lipgloss.Color("#333")).
+		Background(lipgloss.Color("#555555")).
 		Padding(0, 1)
+
+	// 模拟文本输入光标（反色块）
+	cursorStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#FFFFFF")).
+		Foreground(lipgloss.Color("#000000"))
 
 	// 配置项列表
 	var lines []string
 	for i, label := range SettingLabels {
-		prefix := "  "
-		if i == state.SelectedSetting {
-			prefix = "► "
-		}
-
 		value := GetSettingValue(state.Config, i)
 
 		// 密钥特殊处理
@@ -76,29 +97,57 @@ func RenderSettingsPage(state SettingsPageState, width, height int) string {
 			value = utils.MaskSecret(value)
 		}
 
-		// 如果正在编辑此项
+		var renderedLabel string
+		if i == state.SelectedSetting {
+			renderedLabel = selectedLabelStyle.Render(label + ":")
+		} else {
+			renderedLabel = labelStyle.Render(label + ":")
+		}
+
+		var renderedValue string
 		if state.EditMode && i == state.SelectedSetting {
-			// 在光标位置插入光标符号
+			// 在光标位置渲染真实光标指示符
 			cursorPos := state.EditCursor
 			if cursorPos < 0 {
 				cursorPos = 0
 			}
-			if cursorPos > len(state.EditValue) {
-				cursorPos = len(state.EditValue)
+			runes := []rune(state.EditValue)
+			if cursorPos > len(runes) {
+				cursorPos = len(runes)
 			}
-			displayValue := state.EditValue[:cursorPos] + "▋" + state.EditValue[cursorPos:]
-			value = editStyle.Render(displayValue)
-		}
-
-		line := fmt.Sprintf("%s%s: %s", prefix, label, value)
-
-		if i == state.SelectedSetting {
-			line = selectedStyle.Render(line)
+			
+			leftPart := string(runes[:cursorPos])
+			var cursorChar string
+			var rightPart string
+			
+			if cursorPos < len(runes) {
+				cursorChar = string(runes[cursorPos])
+				rightPart = string(runes[cursorPos+1:])
+			} else {
+				cursorChar = " "
+			}
+			
+			displayValue := leftPart + cursorStyle.Render(cursorChar) + rightPart
+			renderedValue = editBoxStyle.Render(displayValue)
 		} else {
-			line = normalStyle.Render(line)
+			renderedValue = valueStyle.Render(value)
 		}
 
-		lines = append(lines, line)
+		// 拼装每行的内容
+		lineInner := lipgloss.JoinHorizontal(lipgloss.Top, renderedLabel, renderedValue)
+		
+		// 定义单行块的样式，使选中框能拉伸一定宽度
+		rowWidth := width - 6
+		if rowWidth < 40 {
+			rowWidth = 40
+		}
+		
+		rowStyle := lipgloss.NewStyle().Width(rowWidth).PaddingLeft(1)
+		if i == state.SelectedSetting {
+			rowStyle = rowStyle.Inherit(selectedRowStyle)
+		}
+
+		lines = append(lines, rowStyle.Render(lineInner))
 	}
 
 	// 操作提示
@@ -115,10 +164,12 @@ func RenderSettingsPage(state SettingsPageState, width, height int) string {
 
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
-		headerStyle.Render("设置"),
-		"",
+		headerStyle.Render("系统设置"),
 		strings.Join(lines, "\n"),
 	)
+	
+	// 包裹容器边距
+	mainContent = containerStyle.Render(mainContent)
 
 	contentLines := strings.Count(mainContent, "\n") + 1
 	footer := common.RenderFooter(width, height, contentLines, helpText)
