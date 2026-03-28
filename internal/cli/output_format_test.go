@@ -1,6 +1,10 @@
-package cmd
+package cli
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestParseOutputFormat(t *testing.T) {
 	tests := []struct {
@@ -19,17 +23,11 @@ func TestParseOutputFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseOutputFormat(tc.input)
 			if tc.wantErr {
-				if err == nil {
-					t.Fatalf("expected error for input %q, got nil", tc.input)
-				}
+				assert.Error(t, err, "expected error for input %q", tc.input)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error for input %q: %v", tc.input, err)
-			}
-			if got != tc.want {
-				t.Fatalf("expected %q, got %q", tc.want, got)
-			}
+			assert.NoError(t, err, "unexpected error for input %q", tc.input)
+			assert.Equal(t, tc.want, got, "expected %q, got %q", tc.want, got)
 		})
 	}
 }

@@ -1,10 +1,10 @@
-package cmd
+package cli
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/aimony/mihosh/internal/domain/model"
 )
 
@@ -49,44 +49,27 @@ func TestResolveTestAction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			action, target, err := resolveTestAction(tc.args)
 			if tc.wantErr != "" {
-				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
-				}
-				if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
-				}
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if action != tc.wantAction {
-				t.Fatalf("expected action %q, got %q", tc.wantAction, action)
-			}
-			if target != tc.wantTarget {
-				t.Fatalf("expected target %q, got %q", tc.wantTarget, target)
-			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantAction, action)
+			assert.Equal(t, tc.wantTarget, target)
 		})
 	}
 }
 
 func TestRenderNodeTestOutputJSON(t *testing.T) {
 	var out bytes.Buffer
-	if err := renderNodeTestOutput(&out, "HK", 15, outputFormatJSON); err != nil {
-		t.Fatalf("renderNodeTestOutput returned error: %v", err)
-	}
+	err := renderNodeTestOutput(&out, "HK", 15, outputFormatJSON)
+	assert.NoError(t, err)
 
 	output := out.String()
-	if !strings.Contains(output, `"action": "node"`) {
-		t.Fatalf("expected action in json output, got:\n%s", output)
-	}
-	if !strings.Contains(output, `"node": "HK"`) {
-		t.Fatalf("expected node in json output, got:\n%s", output)
-	}
-	if !strings.Contains(output, `"delay_ms": 15`) {
-		t.Fatalf("expected delay_ms in json output, got:\n%s", output)
-	}
+	assert.Contains(t, output, `"action": "node"`)
+	assert.Contains(t, output, `"node": "HK"`)
+	assert.Contains(t, output, `"delay_ms": 15`)
 }
 
 func TestRenderCurrentTestOutputTable(t *testing.T) {
@@ -100,17 +83,14 @@ func TestRenderCurrentTestOutputTable(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := renderCurrentTestOutput(&out, "HK", []string{"GLOBAL", "Proxy", "HK"}, ipInfo, outputFormatTable); err != nil {
-		t.Fatalf("renderCurrentTestOutput returned error: %v", err)
-	}
+	err := renderCurrentTestOutput(&out, "HK", []string{"GLOBAL", "Proxy", "HK"}, ipInfo, outputFormatTable)
+	assert.NoError(t, err)
 
 	output := out.String()
-	if !strings.Contains(output, "KEY") || !strings.Contains(output, "VALUE") {
-		t.Fatalf("expected table header in output, got:\n%s", output)
-	}
-	if !strings.Contains(output, "NODE") || !strings.Contains(output, "HK") {
-		t.Fatalf("expected node row in output, got:\n%s", output)
-	}
+	assert.Contains(t, output, "KEY")
+	assert.Contains(t, output, "VALUE")
+	assert.Contains(t, output, "NODE")
+	assert.Contains(t, output, "HK")
 }
 
 func TestResolveCurrentSelectedNode(t *testing.T) {
@@ -160,12 +140,8 @@ func TestResolveCurrentSelectedNode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gotNode, gotFound := resolveCurrentSelectedNode(tc.proxies)
-			if gotFound != tc.wantFound {
-				t.Fatalf("expected found=%v, got %v", tc.wantFound, gotFound)
-			}
-			if gotNode != tc.wantNode {
-				t.Fatalf("expected node %q, got %q", tc.wantNode, gotNode)
-			}
+			assert.Equal(t, tc.wantFound, gotFound)
+			assert.Equal(t, tc.wantNode, gotNode)
 		})
 	}
 }

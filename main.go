@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/aimony/mihosh/cmd"
+	"github.com/aimony/mihosh/internal/cli"
 )
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }

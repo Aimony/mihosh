@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSavePersistsProxyAddress(t *testing.T) {
@@ -27,19 +29,17 @@ func TestSavePersistsProxyAddress(t *testing.T) {
 		ProxyAddress: "http://127.0.0.1:9999",
 	}
 
-	if err := Save(cfg); err != nil {
-		t.Fatalf("Save() returned error: %v", err)
-	}
+	err := Save(cfg)
+	require.NoError(t, err, "Save() returned error")
 
 	configFile := filepath.Join(tempHome, ".mihosh", "config.yaml")
 	reader := viper.New()
 	reader.SetConfigFile(configFile)
 	reader.SetConfigType("yaml")
-	if err := reader.ReadInConfig(); err != nil {
-		t.Fatalf("ReadInConfig() returned error: %v", err)
-	}
+	
+	err = reader.ReadInConfig()
+	require.NoError(t, err, "ReadInConfig() returned error")
 
-	if got := reader.GetString("proxy_address"); got != cfg.ProxyAddress {
-		t.Fatalf("proxy_address not persisted, got %q want %q", got, cfg.ProxyAddress)
-	}
+	got := reader.GetString("proxy_address")
+	assert.Equal(t, cfg.ProxyAddress, got, "proxy_address not persisted")
 }
