@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
@@ -28,9 +30,24 @@ var configInitCmd = &cobra.Command{
 }
 
 var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "显示当前配置",
+	Use:   "show [--output json|table|plain]",
+	Short: "显示当前配置（支持多种输出格式）",
+	Long: `显示当前配置内容。
+
+可通过 --output 选择输出格式：
+  plain  人类可读文本（默认）
+  table  表格输出
+  json   结构化 JSON 输出`,
+	Example: `  mihosh config show
+  mihosh config show --output table
+  mihosh config show --output json`,
 	Run: func(cmd *cobra.Command, args []string) {
+		format, err := parseOutputFormat(configShowOutput)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+
 		configSvc := service.NewConfigService()
 		cfg, err := configSvc.LoadConfig()
 		if err != nil {
@@ -38,15 +55,13 @@ var configShowCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		fmt.Println("当前配置:")
-		fmt.Printf("  API 地址: %s\n", cfg.APIAddress)
-		fmt.Printf("  密钥:     %s\n", utils.MaskSecret(cfg.Secret))
-		fmt.Printf("  测速 URL: %s\n", cfg.TestURL)
-		fmt.Printf("  超时:     %dms\n", cfg.Timeout)
-
-		// 显示配置文件位置
 		configDir, _ := config.GetConfigDir()
-		fmt.Printf("\n配置文件位置: %s\\config.yaml\n", configDir)
+		configPath := filepath.Join(configDir, "config.yaml")
+
+		if err := renderConfigShow(os.Stdout, cfg, configPath, format); err != nil {
+			fmt.Fprintf(os.Stderr, "渲染输出失败: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -84,7 +99,53 @@ var configSetCmd = &cobra.Command{
 }
 
 func init() {
+	configShowCmd.Flags().StringVar(&configShowOutput, "output", string(outputFormatPlain), "输出格式: json|table|plain")
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
+}
+
+var configShowOutput string
+
+func renderConfigShow(w io.Writer, cfg *config.Config, configPath string, format outputFormat) error {
+	switch format {
+	case outputFormatJSON:
+		payload := struct {
+			APIAddress   string `json:"api_address"`
+			Secret       string `json:"secret"`
+			TestURL      string `json:"test_url"`
+			TimeoutMS    int    `json:"timeout_ms"`
+			ProxyAddress string `json:"proxy_address"`
+			ConfigFile   string `json:"config_file"`
+		}{
+			APIAddress:   cfg.APIAddress,
+			Secret:       utils.MaskSecret(cfg.Secret),
+			TestURL:      cfg.TestURL,
+			TimeoutMS:    cfg.Timeout,
+			ProxyAddress: cfg.ProxyAddress,
+			ConfigFile:   configPath,
+		}
+		return writeJSON(w, payload)
+	case outputFormatTable:
+		tw := newTabWriter(w)
+		fmt.Fprintln(tw, "KEY\tVALUE")
+		fmt.Fprintf(tw, "API_ADDRESS\t%s\n", cfg.APIAddress)
+		fmt.Fprintf(tw, "SECRET\t%s\n", utils.MaskSecret(cfg.Secret))
+		fmt.Fprintf(tw, "TEST_URL\t%s\n", cfg.TestURL)
+		fmt.Fprintf(tw, "TIMEOUT_MS\t%d\n", cfg.Timeout)
+		fmt.Fprintf(tw, "PROXY_ADDRESS\t%s\n", cfg.ProxyAddress)
+		fmt.Fprintf(tw, "CONFIG_FILE\t%s\n", configPath)
+		return tw.Flush()
+	case outputFormatPlain:
+		fmt.Fprintln(w, "当前配置:")
+		fmt.Fprintf(w, "  API 地址: %s\n", cfg.APIAddress)
+		fmt.Fprintf(w, "  密钥:     %s\n", utils.MaskSecret(cfg.Secret))
+		fmt.Fprintf(w, "  测速 URL: %s\n", cfg.TestURL)
+		fmt.Fprintf(w, "  超时:     %dms\n", cfg.Timeout)
+		fmt.Fprintf(w, "  代理地址: %s\n", cfg.ProxyAddress)
+		fmt.Fprintf(w, "\n配置文件位置: %s\n", configPath)
+		return nil
+	default:
+		return fmt.Errorf("不支持的输出格式: %s", format)
+	}
 }

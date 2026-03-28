@@ -68,11 +68,15 @@ In addition to the TUI, command-line operations are also supported:
 
 ```bash
 mihosh list                          # List proxy groups
+mihosh list --output json            # List groups in JSON
 mihosh select <group> <node>         # Switch node
 mihosh test                          # Test currently selected node
+mihosh test --output table           # Test current node in table format
 mihosh test node <node>              # Test a specific node
 mihosh test group <group>            # Test all nodes in a group
 mihosh connections                   # View connections
+mihosh connections --output json     # View connections in JSON
+mihosh config show --output table    # Show config in table format
 ```
 
 ## FAQ

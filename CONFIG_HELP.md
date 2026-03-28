@@ -18,15 +18,16 @@ proxy_address: http://127.0.0.1:7890
 ## CLI 设置命令
 
 ```bash
-mihomo config set api-address http://127.0.0.1:9090
-mihomo config set secret your-secret-here
-mihomo config set test-url http://www.gstatic.com/generate_204
-mihomo config set timeout 5000
-mihomo config set proxy-address http://127.0.0.1:7890
+mihosh config set api-address http://127.0.0.1:9090
+mihosh config set secret your-secret-here
+mihosh config set test-url http://www.gstatic.com/generate_204
+mihosh config set timeout 5000
+mihosh config set proxy-address http://127.0.0.1:7890
+mihosh config show --output table
 ```
 
 ## 初始化
 
 ```bash
-mihomo config init
+mihosh config init
 ```

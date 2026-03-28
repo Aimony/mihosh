@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -67,6 +68,48 @@ func TestResolveTestAction(t *testing.T) {
 				t.Fatalf("expected target %q, got %q", tc.wantTarget, target)
 			}
 		})
+	}
+}
+
+func TestRenderNodeTestOutputJSON(t *testing.T) {
+	var out bytes.Buffer
+	if err := renderNodeTestOutput(&out, "HK", 15, outputFormatJSON); err != nil {
+		t.Fatalf("renderNodeTestOutput returned error: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, `"action": "node"`) {
+		t.Fatalf("expected action in json output, got:\n%s", output)
+	}
+	if !strings.Contains(output, `"node": "HK"`) {
+		t.Fatalf("expected node in json output, got:\n%s", output)
+	}
+	if !strings.Contains(output, `"delay_ms": 15`) {
+		t.Fatalf("expected delay_ms in json output, got:\n%s", output)
+	}
+}
+
+func TestRenderCurrentTestOutputTable(t *testing.T) {
+	ipInfo := &model.IPInfo{
+		IP:          "1.1.1.1",
+		Country:     "United States",
+		CountryCode: "US",
+		City:        "Los Angeles",
+		AS:          "AS13335",
+		Org:         "Cloudflare",
+	}
+
+	var out bytes.Buffer
+	if err := renderCurrentTestOutput(&out, "HK", []string{"GLOBAL", "Proxy", "HK"}, ipInfo, outputFormatTable); err != nil {
+		t.Fatalf("renderCurrentTestOutput returned error: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, "KEY") || !strings.Contains(output, "VALUE") {
+		t.Fatalf("expected table header in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "NODE") || !strings.Contains(output, "HK") {
+		t.Fatalf("expected node row in output, got:\n%s", output)
 	}
 }
 
