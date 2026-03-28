@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
@@ -20,12 +21,12 @@ var configCmd = &cobra.Command{
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "初始化配置",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configSvc := service.NewConfigService()
 		if err := configSvc.InitConfig(); err != nil {
-			fmt.Fprintf(os.Stderr, "初始化配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("初始化配置失败: %w", err))
 		}
+		return nil
 	},
 }
 
@@ -41,27 +42,25 @@ var configShowCmd = &cobra.Command{
 	Example: `  mihosh config show
   mihosh config show --output table
   mihosh config show --output json`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		format, err := parseOutputFormat(configShowOutput)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		configSvc := service.NewConfigService()
 		cfg, err := configSvc.LoadConfig()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("加载配置失败: %w", err))
 		}
 
 		configDir, _ := config.GetConfigDir()
 		configPath := filepath.Join(configDir, "config.yaml")
 
 		if err := renderConfigShow(os.Stdout, cfg, configPath, format); err != nil {
-			fmt.Fprintf(os.Stderr, "渲染输出失败: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("渲染输出失败: %w", err)
 		}
+		return nil
 	},
 }
 
@@ -84,17 +83,20 @@ var configSetCmd = &cobra.Command{
   mihosh config set timeout 3000
   mihosh config set proxy-address http://127.0.0.1:7890`,
 	Args: cobra.ExactArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value := args[1]
 
 		configSvc := service.NewConfigService()
 		if err := configSvc.SetConfigValue(key, value); err != nil {
-			fmt.Fprintf(os.Stderr, "设置配置失败: %v\n", err)
-			os.Exit(1)
+			if isConfigSetValidationError(err) {
+				return wrapParameterError(fmt.Errorf("设置配置失败: %w", err))
+			}
+			return wrapConfigError(fmt.Errorf("设置配置失败: %w", err))
 		}
 
 		fmt.Printf("✓ 已设置 %s = %s\n", key, value)
+		return nil
 	},
 }
 
@@ -106,6 +108,11 @@ func init() {
 }
 
 var configShowOutput string
+
+func isConfigSetValidationError(err error) bool {
+	msg := strings.TrimSpace(err.Error())
+	return strings.Contains(msg, "未知的配置项:") || strings.Contains(msg, "timeout 必须是数字:")
+}
 
 func renderConfigShow(w io.Writer, cfg *config.Config, configPath string, format outputFormat) error {
 	switch format {

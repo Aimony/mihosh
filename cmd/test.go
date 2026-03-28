@@ -42,19 +42,20 @@ var testCmd = &cobra.Command{
   mihosh test group Auto --output json`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		_, _, err := resolveTestAction(args)
-		return err
+		if err != nil {
+			return wrapParameterError(err)
+		}
+		return nil
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		format, err := parseOutputFormat(testOutput)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("加载配置失败: %w", err))
 		}
 
 		client := api.NewClient(cfg)
@@ -62,14 +63,13 @@ var testCmd = &cobra.Command{
 
 		action, target, err := resolveTestAction(args)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		if err := runTestAction(os.Stdout, proxySvc, cfg.ProxyAddress, action, target, format); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapNetworkError(err)
 		}
+		return nil
 	},
 }
 
@@ -78,26 +78,24 @@ var testGroupCmd = &cobra.Command{
 	Short:  "[兼容] 测试指定策略组里的所有节点",
 	Hidden: true,
 	Args:   cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		format, err := parseOutputFormat(testGroupOutput)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("加载配置失败: %w", err))
 		}
 
 		client := api.NewClient(cfg)
 		proxySvc := service.NewProxyService(client, cfg.TestURL, cfg.Timeout)
 
 		if err := runTestAction(os.Stdout, proxySvc, cfg.ProxyAddress, actionGroup, args[0], format); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapNetworkError(err)
 		}
+		return nil
 	},
 }
 

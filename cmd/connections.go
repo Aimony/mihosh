@@ -27,17 +27,15 @@ var connectionsCmd = &cobra.Command{
 	Example: `  mihosh connections
   mihosh connections --output table
   mihosh connections --output json`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		format, err := parseOutputFormat(connectionsOutput)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("加载配置失败: %w", err))
 		}
 
 		client := api.NewClient(cfg)
@@ -45,14 +43,13 @@ var connectionsCmd = &cobra.Command{
 
 		conns, err := connSvc.GetConnections()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "获取连接失败: %v\n", err)
-			os.Exit(1)
+			return wrapNetworkError(fmt.Errorf("获取连接失败: %w", err))
 		}
 
 		if err := renderConnections(os.Stdout, *conns, format); err != nil {
-			fmt.Fprintf(os.Stderr, "渲染输出失败: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("渲染输出失败: %w", err)
 		}
+		return nil
 	},
 }
 

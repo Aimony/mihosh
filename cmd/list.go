@@ -27,17 +27,15 @@ var listCmd = &cobra.Command{
 	Example: `  mihosh list
   mihosh list --output table
   mihosh list --output json`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		format, err := parseOutputFormat(listOutput)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return wrapParameterError(err)
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-			os.Exit(1)
+			return wrapConfigError(fmt.Errorf("加载配置失败: %w", err))
 		}
 
 		client := api.NewClient(cfg)
@@ -45,20 +43,18 @@ var listCmd = &cobra.Command{
 
 		groups, orderedNames, err := proxySvc.GetGroups()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "获取策略组失败: %v\n", err)
-			os.Exit(1)
+			return wrapNetworkError(fmt.Errorf("获取策略组失败: %w", err))
 		}
 
 		proxiesMap, err := proxySvc.GetProxies()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "获取代理失败: %v\n", err)
-			os.Exit(1)
+			return wrapNetworkError(fmt.Errorf("获取代理失败: %w", err))
 		}
 
 		if err := renderGroupList(os.Stdout, groups, orderedNames, proxiesMap, format); err != nil {
-			fmt.Fprintf(os.Stderr, "渲染输出失败: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("渲染输出失败: %w", err)
 		}
+		return nil
 	},
 }
 
