@@ -12,7 +12,10 @@ import (
 var selectCmd = &cobra.Command{
 	Use:   "select <group> <proxy>",
 	Short: "切换节点",
-	Args:  cobra.ExactArgs(2),
+	Long:  `切换指定策略组到目标节点。`,
+	Example: `  mihosh select Proxy "HK 01"
+  mihosh select Auto SG-BGP`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

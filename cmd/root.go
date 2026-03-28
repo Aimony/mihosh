@@ -18,6 +18,7 @@ var rootCmd = &cobra.Command{
 	Use:           "mihosh",
 	Short:         "Mihosh - Mihomo 终端管理工具",
 	Long:          `一个功能完整的 mihomo 终端命令行工具，支持节点切换、测速等操作`,
+	Version:       Version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,6 +60,7 @@ func init() {
 	rootCmd.AddCommand(testCmd)
 	rootCmd.AddCommand(testGroupCmd)
 	rootCmd.AddCommand(connectionsCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // Execute 执行命令

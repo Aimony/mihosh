@@ -21,6 +21,7 @@ var configCmd = &cobra.Command{
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "初始化配置",
+	Example: `  mihosh config init`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configSvc := service.NewConfigService()
 		if err := configSvc.InitConfig(); err != nil {
