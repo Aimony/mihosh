@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aimony/mihosh/internal/infrastructure/config"
@@ -63,4 +65,30 @@ func (c *Client) DoRequest(method, path string, body interface{}) ([]byte, error
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+// NewHTTPClientWithProxy 创建一个带代理的 HTTP 客户端
+func (c *Client) NewHTTPClientWithProxy(proxyAddr string) (*http.Client, error) {
+	if proxyAddr == "" {
+		return &http.Client{Timeout: c.httpClient.Timeout}, nil
+	}
+
+	// 统一处理协议前缀
+	if !strings.HasPrefix(proxyAddr, "http://") && !strings.HasPrefix(proxyAddr, "https://") && !strings.HasPrefix(proxyAddr, "socks5://") {
+		proxyAddr = "http://" + proxyAddr
+	}
+
+	proxyURL, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Client{
+		Timeout: c.httpClient.Timeout,
+		Transport: &http.Transport{
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return proxyURL, nil
+			},
+		},
+	}, nil
 }

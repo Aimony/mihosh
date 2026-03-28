@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -72,4 +73,80 @@ func (s *ProxyService) TestAllProxies(proxies []string) map[string]int {
 
 	wg.Wait()
 	return results
+}
+
+// GetNodeChain 获取当前活跃节点链路
+func (s *ProxyService) GetNodeChain() ([]string, error) {
+	var chain []string
+	current := "GLOBAL"
+
+	for {
+		proxy, err := s.client.GetProxy(current)
+		if err != nil {
+			// 如果没有 GLOBAL，尝试找常见的 Proxy 组
+			if current == "GLOBAL" {
+				current = "Proxy"
+				continue
+			}
+			return nil, err
+		}
+
+		// 检查是否已经存在（防止死循环）
+		for _, name := range chain {
+			if name == current {
+				return chain, nil
+			}
+		}
+
+		chain = append(chain, current)
+
+		// 如果节点没有 Now 字段，说明是叶子节点（代理节点）
+		if proxy.Now == "" {
+			break
+		}
+
+		current = proxy.Now
+	}
+
+	return chain, nil
+}
+
+// GetIPInfo 获取当前出口 IP 信息
+func (s *ProxyService) GetIPInfo(proxyAddr string) (*model.IPInfo, error) {
+	httpClient, err := s.client.NewHTTPClientWithProxy(proxyAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	// 使用 ip-api.com 获取详细信息
+	// fields=61439 包含：status, message, country, countryCode, region, regionName, city, zip, lat, lon, timezone, isp, org, as, query
+	resp, err := httpClient.Get("http://ip-api.com/json?fields=61439")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var info model.IPInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, err
+	}
+
+	// 字段校准：将 ip-api.com 的字段映射到通用字段名
+	if info.IP == "" && info.Query != "" {
+		info.IP = info.Query
+	}
+	if info.CountryCode == "" && info.CountryCodeApi != "" {
+		info.CountryCode = info.CountryCodeApi
+	}
+	if info.Organization == "" && info.Org != "" {
+		info.Organization = info.Org
+	}
+	if info.Latitude == 0 && info.Lat != 0 {
+		info.Latitude = info.Lat
+	}
+	if info.Longitude == 0 && info.Lon != 0 {
+		info.Longitude = info.Lon
+	}
+
+	return &info, nil
 }
