@@ -69,7 +69,9 @@ In addition to the TUI, command-line operations are also supported:
 ```bash
 mihosh list                          # List proxy groups
 mihosh select <group> <node>         # Switch node
-mihosh test <node>                   # Test node latency
+mihosh test                          # Test currently selected node
+mihosh test node <node>              # Test a specific node
+mihosh test group <group>            # Test all nodes in a group
 mihosh connections                   # View connections
 ```
 

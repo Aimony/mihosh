@@ -56,18 +56,18 @@ var configSetCmd = &cobra.Command{
 	Long: `设置配置项
 
 可用的配置项:
-  api-address  - Mihomo API 地址 (例如: http://127.0.0.1:9090)
+  api-address  - mihosh API 地址 (例如: http://127.0.0.1:9090)
   secret       - API 密钥
   test-url     - 测速 URL (例如: http://www.gstatic.com/generate_204)
   timeout      - 超时时间，单位毫秒 (例如: 5000)
   proxy-address - HTTP 代理地址 (例如: http://127.0.0.1:7890)
 
 示例:
-  mihomo config set api-address http://127.0.0.1:9090
-  mihomo config set secret your-secret-here
-  mihomo config set test-url http://www.google.com/generate_204
-  mihomo config set timeout 3000
-  mihomo config set proxy-address http://127.0.0.1:7890`,
+  mihosh config set api-address http://127.0.0.1:9090
+  mihosh config set secret your-secret-here
+  mihosh config set test-url http://www.google.com/generate_204
+  mihosh config set timeout 3000
+  mihosh config set proxy-address http://127.0.0.1:7890`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
