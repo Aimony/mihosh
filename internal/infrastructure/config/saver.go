@@ -25,6 +25,7 @@ func Save(cfg *Config) error {
 	viper.Set("secret", cfg.Secret)
 	viper.Set("test_url", cfg.TestURL)
 	viper.Set("timeout", cfg.Timeout)
+	viper.Set("proxy_address", cfg.ProxyAddress)
 
 	return viper.WriteConfigAs(configFile)
 }
