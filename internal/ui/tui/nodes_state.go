@@ -47,6 +47,12 @@ type NodesState struct {
 	proxyScrollTop int
 	testPending    int
 	testing        bool
+	testingTarget  string
+	testAllActive  bool
+	testAllPending []string
+	testAllRunning []string
+	testAllTotal   int
+	testAllDone    int
 	// Ring Buffer for test failures
 	testFailures      [testFailureCap]string
 	failHead          int // 写入位置
@@ -144,6 +150,7 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 		SelectedProxy:     s.selectedProxy,
 		CurrentProxies:    s.displayProxies(),
 		Testing:           s.testing,
+		TestingTarget:     s.testingTarget,
 		TestFailures:      s.sortedTestFailures(),
 		ShowFailureDetail: s.showFailureDetail,
 		FailureScrollTop:  s.failureScrollTop,
@@ -160,6 +167,8 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 
 // Update 处理节点页面按键
 func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service.ProxyService, testURL string, timeout int) (NodesState, tea.Cmd) {
+	_ = proxySvc // 保留签名以兼容调用方（批量测速由页面状态控制并发）
+
 	// 搜索输入模式：拦截所有按键用于输入
 	if s.nodeFilterMode {
 		return s.handleNodeFilterMode(msg)
@@ -232,15 +241,26 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 		if len(display) > 0 && s.selectedProxy < len(display) {
 			proxyName := display[s.selectedProxy]
 			s.testing = true
+			s.testingTarget = proxyName
+			s.testAllActive = false
+			s.testAllPending = nil
+			s.testAllRunning = nil
+			s.testAllTotal = 0
+			s.testAllDone = 0
 			return s, testProxy(client, proxyName, testURL, timeout)
 		}
 
 	case key.Matches(msg, keys.TestAll):
-		if len(s.groupNames) > 0 && len(s.currentProxies) > 0 {
+		if len(s.currentProxies) > 0 {
 			s.testing = true
 			s.clearTestFailures()
 			s.showFailureDetail = false
-			return s, testAllProxies(proxySvc, s.currentProxies)
+			s.testAllActive = true
+			s.testAllPending = append([]string(nil), s.currentProxies...)
+			s.testAllRunning = nil
+			s.testAllTotal = len(s.currentProxies)
+			s.testAllDone = 0
+			return s.launchBatchTests(client, testURL, timeout)
 		}
 
 	case msg.String() == "f":
@@ -477,13 +497,32 @@ func (s NodesState) ApplyTestDone(name string, delay int, err error) NodesState 
 	if err != nil {
 		s.appendTestFailure(fmt.Sprintf("%s: %s", name, err.Error()))
 	}
+	if s.testAllActive {
+		s.removeRunningTest(name)
+		s.testAllDone++
+		if s.testAllDone >= s.testAllTotal {
+			s.testing = false
+			s.testingTarget = ""
+			s.testAllActive = false
+			s.testAllPending = nil
+			s.testAllRunning = nil
+			s.testAllTotal = 0
+			s.testAllDone = 0
+			return s
+		}
+		s.testing = true
+		s.updateBatchTestingTarget()
+		return s
+	}
 	if s.testPending > 0 {
 		s.testPending--
 		if s.testPending == 0 {
 			s.testing = false
+			s.testingTarget = ""
 		}
 	} else {
 		s.testing = false
+		s.testingTarget = ""
 	}
 	return s
 }
@@ -496,7 +535,64 @@ func (s NodesState) ApplyTestAllDone(results map[string]int) NodesState {
 		}
 	}
 	s.testing = false
+	s.testingTarget = ""
+	s.testAllActive = false
+	s.testAllPending = nil
+	s.testAllRunning = nil
+	s.testAllTotal = 0
+	s.testAllDone = 0
 	return s
+}
+
+// launchBatchTests 启动/补位批量测速任务（受并发上限控制）
+func (s NodesState) launchBatchTests(client *api.Client, testURL string, timeout int) (NodesState, tea.Cmd) {
+	if !s.testAllActive || s.testAllTotal == 0 {
+		return s, nil
+	}
+
+	slots := model.TestConcurrency - len(s.testAllRunning)
+	if slots <= 0 || len(s.testAllPending) == 0 {
+		s.updateBatchTestingTarget()
+		return s, nil
+	}
+
+	cmds := make([]tea.Cmd, 0, slots)
+	for i := 0; i < slots && len(s.testAllPending) > 0; i++ {
+		name := s.testAllPending[0]
+		s.testAllPending = s.testAllPending[1:]
+		s.testAllRunning = append(s.testAllRunning, name)
+		cmds = append(cmds, testProxy(client, name, testURL, timeout))
+	}
+
+	s.testing = true
+	s.updateBatchTestingTarget()
+	return s, tea.Batch(cmds...)
+}
+
+func (s *NodesState) updateBatchTestingTarget() {
+	if !s.testing || !s.testAllActive {
+		return
+	}
+	if len(s.testAllRunning) == 0 {
+		if len(s.testAllPending) > 0 {
+			s.testingTarget = fmt.Sprintf("%s（已完成 %d/%d）", s.testAllPending[0], s.testAllDone, s.testAllTotal)
+		} else {
+			s.testingTarget = ""
+		}
+		return
+	}
+	s.testingTarget = fmt.Sprintf("%s（已完成 %d/%d）", s.testAllRunning[0], s.testAllDone, s.testAllTotal)
+}
+
+func (s *NodesState) removeRunningTest(name string) {
+	for i, running := range s.testAllRunning {
+		if running == name {
+			last := len(s.testAllRunning) - 1
+			s.testAllRunning[i] = s.testAllRunning[last]
+			s.testAllRunning = s.testAllRunning[:last]
+			return
+		}
+	}
 }
 
 // updateCurrentProxies 更新当前策略组的节点列表（指针接收者，修改自身）

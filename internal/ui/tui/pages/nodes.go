@@ -25,6 +25,7 @@ type NodesPageState struct {
 	SelectedProxy     int
 	CurrentProxies    []string
 	Testing           bool
+	TestingTarget     string
 	TestFailures      []string
 	ShowFailureDetail bool     // 是否显示测速失败弹窗
 	FailureScrollTop  int      // 测速失败弹窗滚动偏移

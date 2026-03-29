@@ -193,6 +193,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case testDoneMsg:
 		m.nodesState = m.nodesState.ApplyTestDone(msg.name, msg.delay, msg.err)
+		if m.nodesState.testAllActive {
+			var batchCmd tea.Cmd
+			m.nodesState, batchCmd = m.nodesState.launchBatchTests(m.client, m.testURL, m.timeout)
+			return m, tea.Batch(fetchProxies(m.client), batchCmd)
+		}
 		return m, fetchProxies(m.client)
 
 	case testAllDoneMsg:
@@ -223,6 +228,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg
 		m.nodesState.testing = false
+		m.nodesState.testingTarget = ""
+		m.nodesState.testAllActive = false
+		m.nodesState.testAllPending = nil
+		m.nodesState.testAllRunning = nil
+		m.nodesState.testAllTotal = 0
+		m.nodesState.testAllDone = 0
 		m.nodesState.testPending = 0
 	}
 

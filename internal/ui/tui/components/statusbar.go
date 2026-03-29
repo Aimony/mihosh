@@ -11,7 +11,7 @@ import (
 )
 
 // RenderStatusBar 渲染底部状态栏（含实时指标）
-func RenderStatusBar(width int, err error, testing bool, chartData *model.ChartData) string {
+func RenderStatusBar(width int, err error, testing bool, testingTarget string, chartData *model.ChartData) string {
 	// ── 左侧：运行状态 / 错误 ──
 	var status string
 	if err != nil {
@@ -36,7 +36,17 @@ func RenderStatusBar(width int, err error, testing bool, chartData *model.ChartD
 
 		status = styles.ErrorStyle.Render(fmt.Sprintf("✗ %s", friendlyErr))
 	} else if testing {
-		status = styles.TestingStyle.Render("⏳ 测速中...")
+		statusText := "⏳ 正在测速..."
+		if target := strings.TrimSpace(testingTarget); target != "" {
+			// 避免节点名过长挤压状态栏布局
+			maxTargetLen := width / 3
+			if maxTargetLen < 8 {
+				maxTargetLen = 8
+			}
+			target = truncateRunes(target, maxTargetLen)
+			statusText = fmt.Sprintf("⏳ 正在测速: %s", target)
+		}
+		status = styles.TestingStyle.Render(statusText)
 	} else {
 		status = styles.StatusStyle.Render("● 正常")
 	}
@@ -76,6 +86,17 @@ func RenderStatusBar(width int, err error, testing bool, chartData *model.ChartD
 	statusLine := leftPart + strings.Repeat(" ", gap) + metricsStr
 
 	return lipgloss.JoinVertical(lipgloss.Left, divider, statusLine)
+}
+
+func truncateRunes(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 1 {
+		return "…"
+	}
+	return string(runes[:max-1]) + "…"
 }
 
 // lastValue 获取切片最后一个元素，空切片返回 0

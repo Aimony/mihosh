@@ -75,7 +75,13 @@ func (m Model) View() string {
 	upper := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainPane)
 
 	// ── 底部状态栏 ──
-	statusBar := components.RenderStatusBar(m.width, m.err, m.nodesState.testing, m.chartData)
+	statusBar := components.RenderStatusBar(
+		m.width,
+		m.err,
+		m.nodesState.testing,
+		m.nodesState.testingTarget,
+		m.chartData,
+	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, upper, statusBar)
 }
