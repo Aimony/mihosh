@@ -10,7 +10,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const logCap = 1000
+const (
+	logCap               = 1000
+	filteredLogIndexCap  = 1000  // 过滤日志最多显示数量
+)
 
 // LogsState 日志页面完整状态（使用 Ring Buffer 存储日志）
 type LogsState struct {
@@ -19,6 +22,7 @@ type LogsState struct {
 	logHead int // 写入位置
 	logCount int // 已写入总数（上限 logCap）
 
+	// 过滤日志索引（预分配容量避免动态增长）
 	filteredLogIndices []int
 	logLevel           int    // 0=debug,1=info,2=warning,3=error,4=silent
 	logFilter          string
@@ -30,7 +34,10 @@ type LogsState struct {
 
 // NewLogsState 初始化日志状态
 func NewLogsState() LogsState {
-	return LogsState{logLevel: 1} // 默认 info
+	return LogsState{
+		logLevel:           1, // 默认 info
+		filteredLogIndices: make([]int, 0, filteredLogIndexCap),
+	}
 }
 
 // logs 返回日志列表（最新在前，用于渲染）
@@ -66,7 +73,7 @@ func (s LogsState) AppendLog(logType, payload string) LogsState {
 func (s LogsState) ClearLogs() LogsState {
 	s.logHead = 0
 	s.logCount = 0
-	s.filteredLogIndices = nil
+	s.filteredLogIndices = s.filteredLogIndices[:0] // 保留底层数组，避免重新分配
 	s.selectedLog = 0
 	s.logScrollTop = 0
 	return s
@@ -198,7 +205,9 @@ func (s LogsState) handleLogFilterMode(msg tea.KeyMsg) (LogsState, tea.Cmd) {
 // updateFilteredLogs 重建过滤索引缓存（索引对应 logs() 的下标）
 func (s *LogsState) updateFilteredLogs() {
 	logList := s.logs()
-	var indices []int
+	// 重用预分配的切片，重置长度
+	s.filteredLogIndices = s.filteredLogIndices[:0]
+	
 	for i, log := range logList {
 		logLevelIndex := getLogLevelIndex(log.Type)
 		if logLevelIndex < s.logLevel {
@@ -207,9 +216,8 @@ func (s *LogsState) updateFilteredLogs() {
 		if s.logFilter != "" && !strings.Contains(strings.ToLower(log.Payload), strings.ToLower(s.logFilter)) {
 			continue
 		}
-		indices = append(indices, i)
+		s.filteredLogIndices = append(s.filteredLogIndices, i)
 	}
-	s.filteredLogIndices = indices
 }
 
 // getLogLevelIndex 获取日志级别索引（0=debug,1=info,2=warning,3=error,4=silent）

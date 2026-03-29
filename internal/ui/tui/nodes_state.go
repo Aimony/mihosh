@@ -11,6 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const testFailureCap = 100 // 最多保留最近 100 条测速失败记录
+
 // NodesState 节点页面完整状态
 type NodesState struct {
 	groups            map[string]model.Group
@@ -23,8 +25,39 @@ type NodesState struct {
 	proxyScrollTop    int
 	testPending       int
 	testing           bool
-	testFailures      []string
+	// Ring Buffer for test failures
+	testFailures [testFailureCap]string
+	failHead     int // 写入位置
+	failCount    int // 已写入总数（上限 testFailureCap）
 	showFailureDetail bool
+}
+
+// appendTestFailure 向 Ring Buffer 追加一条测速失败记录
+func (s *NodesState) appendTestFailure(msg string) {
+	s.testFailures[s.failHead] = msg
+	s.failHead = (s.failHead + 1) % testFailureCap
+	if s.failCount < testFailureCap {
+		s.failCount++
+	}
+}
+
+// TestFailures 返回测速失败列表（最新在前）
+func (s NodesState) TestFailures() []string {
+	if s.failCount == 0 {
+		return nil
+	}
+	result := make([]string, s.failCount)
+	for i := 0; i < s.failCount; i++ {
+		idx := (s.failHead - 1 - i + testFailureCap) % testFailureCap
+		result[i] = s.testFailures[idx]
+	}
+	return result
+}
+
+// clearTestFailures 清空测速失败记录
+func (s *NodesState) clearTestFailures() {
+	s.failHead = 0
+	s.failCount = 0
 }
 
 // ToPageState 转换为渲染层所需的 NodesPageState
@@ -37,7 +70,7 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 		SelectedProxy:     s.selectedProxy,
 		CurrentProxies:    s.currentProxies,
 		Testing:           s.testing,
-		TestFailures:      s.testFailures,
+		TestFailures:      s.TestFailures(),
 		ShowFailureDetail: s.showFailureDetail,
 		Width:             width,
 		Height:            height,
@@ -99,13 +132,13 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 	case key.Matches(msg, keys.TestAll):
 		if len(s.groupNames) > 0 && len(s.currentProxies) > 0 {
 			s.testing = true
-			s.testFailures = nil
+			s.clearTestFailures()
 			s.showFailureDetail = false
 			return s, testAllProxies(proxySvc, s.currentProxies)
 		}
 
 	case msg.String() == "f":
-		if len(s.testFailures) > 0 {
+		if s.failCount > 0 {
 			s.showFailureDetail = !s.showFailureDetail
 		}
 	}
@@ -172,7 +205,7 @@ func (s NodesState) ApplyProxies(proxies map[string]model.Proxy) NodesState {
 // ApplyTestDone 单节点测速完成
 func (s NodesState) ApplyTestDone(name string, delay int, err error) NodesState {
 	if err != nil {
-		s.testFailures = append(s.testFailures, fmt.Sprintf("%s: %s", name, err.Error()))
+		s.appendTestFailure(fmt.Sprintf("%s: %s", name, err.Error()))
 	}
 	if s.testPending > 0 {
 		s.testPending--
@@ -189,7 +222,7 @@ func (s NodesState) ApplyTestDone(name string, delay int, err error) NodesState 
 func (s NodesState) ApplyTestAllDone(results map[string]int) NodesState {
 	for name, delay := range results {
 		if delay == -1 {
-			s.testFailures = append(s.testFailures, fmt.Sprintf("%s: timeout or error", name))
+			s.appendTestFailure(fmt.Sprintf("%s: timeout or error", name))
 		}
 	}
 	s.testing = false

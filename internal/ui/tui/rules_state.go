@@ -13,7 +13,7 @@ import (
 // RulesState 规则页面完整状态
 type RulesState struct {
 	rules               []model.Rule
-	filteredRuleIndices []int
+	filteredRuleIndices []int // 预分配，重建时重用底层数组
 	ruleFilter          string
 	ruleFilterMode      bool
 	selectedRule        int
@@ -93,6 +93,10 @@ func (s RulesState) HandleMouseScroll(up bool) RulesState {
 // ApplyRules 应用新规则列表并重建过滤缓存
 func (s RulesState) ApplyRules(rules []model.Rule) RulesState {
 	s.rules = rules
+	// 预分配容量与规则数相同，避免动态扩容
+	if cap(s.filteredRuleIndices) < len(rules) {
+		s.filteredRuleIndices = make([]int, 0, len(rules))
+	}
 	s.updateFilteredRules()
 	return s
 }
@@ -121,32 +125,30 @@ func (s RulesState) handleRuleFilterMode(msg tea.KeyMsg) (RulesState, tea.Cmd) {
 	return s, nil
 }
 
-// updateFilteredRules 重建规则过滤索引缓存
+// updateFilteredRules 重建规则过滤索引缓存（重用底层数组，避免频繁分配）
 func (s *RulesState) updateFilteredRules() {
 	if len(s.rules) == 0 {
-		s.filteredRuleIndices = nil
+		s.filteredRuleIndices = s.filteredRuleIndices[:0]
 		return
 	}
+	// 重置长度，保留底层数组
+	s.filteredRuleIndices = s.filteredRuleIndices[:0]
+
 	if s.ruleFilter == "" {
-		indices := make([]int, len(s.rules))
 		for i := range s.rules {
-			indices[i] = i
+			s.filteredRuleIndices = append(s.filteredRuleIndices, i)
 		}
-		s.filteredRuleIndices = indices
 		return
 	}
 
 	keywords := strings.Fields(strings.ToLower(s.ruleFilter))
 	if len(keywords) == 0 {
-		indices := make([]int, len(s.rules))
 		for i := range s.rules {
-			indices[i] = i
+			s.filteredRuleIndices = append(s.filteredRuleIndices, i)
 		}
-		s.filteredRuleIndices = indices
 		return
 	}
 
-	var indices []int
 	for i, rule := range s.rules {
 		searchText := strings.ToLower(rule.Type + " " + rule.Payload + " " + rule.Proxy)
 		allMatch := true
@@ -157,8 +159,7 @@ func (s *RulesState) updateFilteredRules() {
 			}
 		}
 		if allMatch {
-			indices = append(indices, i)
+			s.filteredRuleIndices = append(s.filteredRuleIndices, i)
 		}
 	}
-	s.filteredRuleIndices = indices
 }
