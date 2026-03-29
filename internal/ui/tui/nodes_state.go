@@ -71,6 +71,33 @@ func (s NodesState) TestFailures() []string {
 	return result
 }
 
+// sortedTestFailures 返回按当前排序模式排列的测速失败列表
+func (s NodesState) sortedTestFailures() []string {
+	result := s.TestFailures()
+	if len(result) == 0 {
+		return result
+	}
+	// 格式为 "节点名: 错误信息"，按冒号前的节点名排序
+	nodeName := func(entry string) string {
+		if i := strings.Index(entry, ": "); i >= 0 {
+			return strings.ToLower(entry[:i])
+		}
+		return strings.ToLower(entry)
+	}
+	switch s.proxySortOrder {
+	case SortOrderAZ:
+		sort.Slice(result, func(i, j int) bool {
+			return nodeName(result[i]) < nodeName(result[j])
+		})
+	case SortOrderZA:
+		sort.Slice(result, func(i, j int) bool {
+			return nodeName(result[i]) > nodeName(result[j])
+		})
+	// SortOrderOriginal: 保持 TestFailures() 返回的最新在前顺序
+	}
+	return result
+}
+
 // clearTestFailures 清空测速失败记录
 func (s *NodesState) clearTestFailures() {
 	s.failHead = 0
@@ -87,7 +114,7 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 		SelectedProxy:     s.selectedProxy,
 		CurrentProxies:    s.currentProxies,
 		Testing:           s.testing,
-		TestFailures:      s.TestFailures(),
+		TestFailures:      s.sortedTestFailures(),
 		ShowFailureDetail: s.showFailureDetail,
 		FailureScrollTop:  s.failureScrollTop,
 		SortOrderLabels:   sortOrderLabels,
