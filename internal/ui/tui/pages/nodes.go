@@ -19,19 +19,20 @@ const (
 
 // NodesPageState 节点页面状态（由 Model 传入）
 type NodesPageState struct {
-	Groups            map[string]model.Group
-	Proxies           map[string]model.Proxy
-	GroupNames        []string
-	SelectedGroup     int
-	SelectedProxy     int
-	CurrentProxies    []string
-	Testing           bool
-	TestFailures      []string
-	ShowFailureDetail bool // 是否显示测速失败详情
-	Width             int
-	Height            int // 终端高度
-	GroupScrollTop    int // 策略组列表滚动偏移
-	ProxyScrollTop    int // 节点列表滚动偏移
+	Groups             map[string]model.Group
+	Proxies            map[string]model.Proxy
+	GroupNames         []string
+	SelectedGroup      int
+	SelectedProxy      int
+	CurrentProxies     []string
+	Testing            bool
+	TestFailures       []string
+	ShowFailureDetail  bool // 是否显示测速失败弹窗
+	FailureScrollTop   int  // 测速失败弹窗滚动偏移
+	Width              int
+	Height             int // 终端高度
+	GroupScrollTop     int // 策略组列表滚动偏移
+	ProxyScrollTop     int // 节点列表滚动偏移
 }
 
 // displayWidth 计算字符串的显示宽度（使用 runewidth 库精确计算）
@@ -288,24 +289,10 @@ func RenderNodesPage(state NodesPageState) string {
 
 	helpText := common.MutedStyle.Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
 
-	var failureInfo string
+	var failureBadge string
 	if len(state.TestFailures) > 0 {
-		errorStyle := common.ErrorStyle
-		hintStyle := common.MutedStyle
-
-		if state.ShowFailureDetail {
-			// 详情模式：显示所有失败节点及错误信息
-			failureLines := []string{errorStyle.Render("⚠ 测速失败的节点:")}
-			for _, failure := range state.TestFailures {
-				failureLines = append(failureLines, "  "+failure)
-			}
-			failureLines = append(failureLines, hintStyle.Render("  [f]收起详情"))
-			failureInfo = strings.Join(failureLines, "\n")
-		} else {
-			// 简略模式：只显示失败数量
-			failureInfo = errorStyle.Render(fmt.Sprintf("⚠ %d 个节点测速失败", len(state.TestFailures))) +
-				" " + hintStyle.Render("[f]查看详情")
-		}
+		failureBadge = common.ErrorStyle.Render(fmt.Sprintf("⚠ %d 个节点测速失败", len(state.TestFailures))) +
+			" " + common.MutedStyle.Render("[f]查看详情")
 	}
 
 	mainContent := lipgloss.JoinVertical(
@@ -316,10 +303,162 @@ func RenderNodesPage(state NodesPageState) string {
 		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
 		"",
-		failureInfo,
+		failureBadge,
 	)
 
 	contentLines := strings.Count(mainContent, "\n") + 1
 	footer := common.RenderFooter(state.Width, state.Height, contentLines, helpText)
-	return mainContent + footer
+	fullPage := mainContent + footer
+
+	if state.ShowFailureDetail {
+		modal := buildFailureModal(state)
+		return overlayCenter(fullPage, modal, state.Width, state.Height)
+	}
+	return fullPage
+}
+
+// buildFailureModal 构建测速失败详情弹窗字符串
+func buildFailureModal(state NodesPageState) string {
+	failures := state.TestFailures
+
+	// 弹窗内容区宽度（去掉左右边框各1 + 内边距各1 = 4）
+	modalWidth := state.Width - 10
+	if modalWidth < 50 {
+		modalWidth = 50
+	}
+	if modalWidth > 100 {
+		modalWidth = 100
+	}
+	innerWidth := modalWidth - 4
+
+	// 可显示的最大行数（去掉标题、分隔线、空行、帮助行 = 4行）
+	modalHeight := state.Height - 8
+	if modalHeight < 6 {
+		modalHeight = 6
+	}
+	maxDisplay := modalHeight - 4
+	if maxDisplay < 1 {
+		maxDisplay = 1
+	}
+
+	// 截断过长的失败信息
+	var allLines []string
+	for _, f := range failures {
+		if displayWidth(f) > innerWidth {
+			runes := []rune(f)
+			w, end := 0, 0
+			for end < len(runes) {
+				cw := runewidth.RuneWidth(runes[end])
+				if w+cw > innerWidth-1 {
+					break
+				}
+				w += cw
+				end++
+			}
+			allLines = append(allLines, string(runes[:end])+"…")
+		} else {
+			allLines = append(allLines, f)
+		}
+	}
+
+	total := len(allLines)
+
+	// 限制滚动范围
+	scrollTop := state.FailureScrollTop
+	if scrollTop > total-maxDisplay {
+		scrollTop = total - maxDisplay
+	}
+	if scrollTop < 0 {
+		scrollTop = 0
+	}
+	endIdx := scrollTop + maxDisplay
+	if endIdx > total {
+		endIdx = total
+	}
+
+	// 构建内容行
+	var bodyLines []string
+	if scrollTop > 0 {
+		bodyLines = append(bodyLines, common.DimStyle.Render(fmt.Sprintf("↑ 还有 %d 行", scrollTop)))
+	}
+	for _, line := range allLines[scrollTop:endIdx] {
+		bodyLines = append(bodyLines, line)
+	}
+	if endIdx < total {
+		bodyLines = append(bodyLines, common.DimStyle.Render(fmt.Sprintf("↓ 还有 %d 行", total-endIdx)))
+	}
+	bodyLines = append(bodyLines, "")
+	bodyLines = append(bodyLines, common.MutedStyle.Render("[↑/↓] 滚动  [f/Esc] 关闭"))
+
+	body := strings.Join(bodyLines, "\n")
+
+	title := common.ErrorStyle.Render(fmt.Sprintf("⚠ 测速失败节点列表  共 %d 条", total))
+	separator := common.DimStyle.Render(strings.Repeat("─", innerWidth))
+	content := lipgloss.JoinVertical(lipgloss.Left, title, separator, body)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#E74C3C")).
+		Padding(0, 1).
+		Width(modalWidth).
+		Render(content)
+}
+
+// overlayCenter 将弹窗字符串居中叠加在底层页面上
+func overlayCenter(base, overlay string, width, height int) string {
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+
+	// 补齐底层行数到 height
+	for len(baseLines) < height {
+		baseLines = append(baseLines, "")
+	}
+
+	overlayH := len(overlayLines)
+	overlayW := 0
+	for _, l := range overlayLines {
+		if w := displayWidth(l); w > overlayW {
+			overlayW = w
+		}
+	}
+
+	// 计算叠加起始位置（居中）
+	startRow := (height - overlayH) / 2
+	if startRow < 0 {
+		startRow = 0
+	}
+	startCol := (width - overlayW) / 2
+	if startCol < 0 {
+		startCol = 0
+	}
+
+	result := make([]string, len(baseLines))
+	copy(result, baseLines)
+
+	for i, ol := range overlayLines {
+		row := startRow + i
+		if row >= len(result) {
+			break
+		}
+		bl := result[row]
+		// 将底层行按显示宽度截断到 startCol，然后拼上弹窗行
+		blRunes := []rune(bl)
+		w, col := 0, 0
+		for col < len(blRunes) {
+			cw := runewidth.RuneWidth(blRunes[col])
+			if w+cw > startCol {
+				break
+			}
+			w += cw
+			col++
+		}
+		prefix := string(blRunes[:col])
+		// 补齐空格到 startCol
+		if w < startCol {
+			prefix += strings.Repeat(" ", startCol-w)
+		}
+		result[row] = prefix + ol
+	}
+
+	return strings.Join(result, "\n")
 }

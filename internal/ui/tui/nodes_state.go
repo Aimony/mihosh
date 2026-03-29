@@ -29,7 +29,8 @@ type NodesState struct {
 	testFailures [testFailureCap]string
 	failHead     int // 写入位置
 	failCount    int // 已写入总数（上限 testFailureCap）
-	showFailureDetail bool
+	showFailureDetail   bool
+	failureScrollTop    int
 }
 
 // appendTestFailure 向 Ring Buffer 追加一条测速失败记录
@@ -63,24 +64,41 @@ func (s *NodesState) clearTestFailures() {
 // ToPageState 转换为渲染层所需的 NodesPageState
 func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 	return pages.NodesPageState{
-		Groups:            s.groups,
-		Proxies:           s.proxies,
-		GroupNames:        s.groupNames,
-		SelectedGroup:     s.selectedGroup,
-		SelectedProxy:     s.selectedProxy,
-		CurrentProxies:    s.currentProxies,
-		Testing:           s.testing,
-		TestFailures:      s.TestFailures(),
-		ShowFailureDetail: s.showFailureDetail,
-		Width:             width,
-		Height:            height,
-		GroupScrollTop:    s.groupScrollTop,
-		ProxyScrollTop:    s.proxyScrollTop,
+		Groups:             s.groups,
+		Proxies:            s.proxies,
+		GroupNames:         s.groupNames,
+		SelectedGroup:      s.selectedGroup,
+		SelectedProxy:      s.selectedProxy,
+		CurrentProxies:     s.currentProxies,
+		Testing:            s.testing,
+		TestFailures:       s.TestFailures(),
+		ShowFailureDetail:  s.showFailureDetail,
+		FailureScrollTop:   s.failureScrollTop,
+		Width:              width,
+		Height:             height,
+		GroupScrollTop:     s.groupScrollTop,
+		ProxyScrollTop:     s.proxyScrollTop,
 	}
 }
 
 // Update 处理节点页面按键
 func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service.ProxyService, testURL string, timeout int) (NodesState, tea.Cmd) {
+	// 弹窗打开时，↑/↓ 控制弹窗滚动，f/Esc 关闭弹窗
+	if s.showFailureDetail {
+		switch {
+		case key.Matches(msg, keys.Up):
+			if s.failureScrollTop > 0 {
+				s.failureScrollTop--
+			}
+		case key.Matches(msg, keys.Down):
+			s.failureScrollTop++
+		case msg.String() == "f", msg.String() == "esc":
+			s.showFailureDetail = false
+			s.failureScrollTop = 0
+		}
+		return s, nil
+	}
+
 	switch {
 	case key.Matches(msg, keys.Up):
 		if s.selectedProxy > 0 {
@@ -139,15 +157,27 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 
 	case msg.String() == "f":
 		if s.failCount > 0 {
-			s.showFailureDetail = !s.showFailureDetail
+			s.showFailureDetail = true
+			s.failureScrollTop = 0
 		}
 	}
 
 	return s, nil
 }
 
-// HandleMouseScroll 处理鼠标滚轮（节点列表区域）
+// HandleMouseScroll 处理鼠标滚轮（弹窗打开时控制弹窗滚动，否则控制节点列表）
 func (s NodesState) HandleMouseScroll(up bool) NodesState {
+	if s.showFailureDetail {
+		if up {
+			if s.failureScrollTop > 0 {
+				s.failureScrollTop--
+			}
+		} else {
+			s.failureScrollTop++
+		}
+		return s
+	}
+
 	if up {
 		if s.selectedProxy > 0 {
 			s.selectedProxy--
