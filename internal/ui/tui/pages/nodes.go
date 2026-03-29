@@ -127,39 +127,23 @@ func buildFailureModal(state NodesPageState) string {
 		maxDisplay = 1
 	}
 
-	// 截断过长的失败信息
-	var allLines []string
-	for _, f := range failures {
-		if displayWidth(f) > innerWidth {
-			runes := []rune(f)
-			w, end := 0, 0
-			for end < len(runes) {
-				cw := runewidth.RuneWidth(runes[end])
-				if w+cw > innerWidth-1 {
-					break
-				}
-				w += cw
-				end++
-			}
-			allLines = append(allLines, string(runes[:end])+"…")
-		} else {
-			allLines = append(allLines, f)
-		}
+	allLines := buildFailureDetailLines(failures, innerWidth)
+	if len(allLines) == 0 {
+		allLines = []string{"暂无测速失败记录"}
 	}
-
-	total := len(allLines)
+	totalLines := len(allLines)
 
 	// 限制滚动范围
 	scrollTop := state.FailureScrollTop
-	if scrollTop > total-maxDisplay {
-		scrollTop = total - maxDisplay
+	if scrollTop > totalLines-maxDisplay {
+		scrollTop = totalLines - maxDisplay
 	}
 	if scrollTop < 0 {
 		scrollTop = 0
 	}
 	endIdx := scrollTop + maxDisplay
-	if endIdx > total {
-		endIdx = total
+	if endIdx > totalLines {
+		endIdx = totalLines
 	}
 
 	// 构建内容行
@@ -170,17 +154,18 @@ func buildFailureModal(state NodesPageState) string {
 	for _, line := range allLines[scrollTop:endIdx] {
 		bodyLines = append(bodyLines, line)
 	}
-	if endIdx < total {
-		bodyLines = append(bodyLines, common.DimStyle.Render(fmt.Sprintf("↓ 还有 %d 行", total-endIdx)))
+	if endIdx < totalLines {
+		bodyLines = append(bodyLines, common.DimStyle.Render(fmt.Sprintf("↓ 还有 %d 行", totalLines-endIdx)))
 	}
 	bodyLines = append(bodyLines, "")
-	bodyLines = append(bodyLines, common.MutedStyle.Render("[↑/↓] 滚动  [f/Esc] 关闭"))
+	bodyLines = append(bodyLines, common.MutedStyle.Render("[↑/↓] 滚动  [Home/End] 跳转  [f/Esc] 关闭"))
 
 	body := strings.Join(bodyLines, "\n")
 
-	title := common.ErrorStyle.Render(fmt.Sprintf("⚠ 测速失败节点列表  共 %d 条", total))
+	title := common.ErrorStyle.Render(fmt.Sprintf("⚠ 测速失败节点列表  共 %d 条", len(failures)))
+	subtitle := common.DimStyle.Render("格式: 节点 / 原因 / 源信息（完整保留）")
 	separator := common.DimStyle.Render(strings.Repeat("─", innerWidth))
-	content := lipgloss.JoinVertical(lipgloss.Left, title, separator, body)
+	content := lipgloss.JoinVertical(lipgloss.Left, title, subtitle, separator, body)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -188,6 +173,141 @@ func buildFailureModal(state NodesPageState) string {
 		Padding(0, 1).
 		Width(modalWidth).
 		Render(content)
+}
+
+func buildFailureDetailLines(failures []string, width int) []string {
+	if width < 20 {
+		width = 20
+	}
+
+	lines := make([]string, 0, len(failures)*6)
+	for i, entry := range failures {
+		node, raw := splitFailureEntry(entry)
+		summary := summarizeFailure(raw)
+
+		lines = append(lines, fmt.Sprintf("[%02d] %s", i+1, node))
+		lines = append(lines, wrapWithPrefix("  原因: ", summary, width)...)
+		lines = append(lines, wrapWithPrefix("  源信息: ", raw, width)...)
+		if i < len(failures)-1 {
+			lines = append(lines, "")
+		}
+	}
+	return lines
+}
+
+func splitFailureEntry(entry string) (node string, raw string) {
+	parts := strings.SplitN(strings.TrimSpace(entry), ": ", 2)
+	if len(parts) == 2 {
+		node = strings.TrimSpace(parts[0])
+		raw = strings.TrimSpace(parts[1])
+	}
+	if node == "" {
+		node = "未知节点"
+	}
+	if raw == "" {
+		raw = strings.TrimSpace(entry)
+	}
+	if raw == "" {
+		raw = "未知错误"
+	}
+	return node, raw
+}
+
+func summarizeFailure(raw string) string {
+	msg := strings.TrimSpace(raw)
+	if msg == "" {
+		return "未知错误"
+	}
+
+	if detail := extractRequestFailureDetail(msg); detail != "" {
+		return detail
+	}
+
+	if strings.Contains(msg, "context deadline exceeded") {
+		return "请求超时（context deadline exceeded）"
+	}
+	if strings.Contains(strings.ToLower(msg), "timeout") {
+		return "请求超时（timeout）"
+	}
+
+	return msg
+}
+
+func extractRequestFailureDetail(msg string) string {
+	idx := strings.LastIndex(msg, `": `)
+	if idx == -1 {
+		return ""
+	}
+	quotedPart := msg[:idx]
+	if !strings.Contains(quotedPart, `"http://`) &&
+		!strings.Contains(quotedPart, `"https://`) &&
+		!strings.Contains(quotedPart, `"socks5://`) {
+		return ""
+	}
+	return strings.TrimSpace(msg[idx+3:])
+}
+
+func wrapWithPrefix(prefix, text string, width int) []string {
+	prefixWidth := displayWidth(prefix)
+	if width <= prefixWidth {
+		width = prefixWidth + 1
+	}
+
+	parts := wrapByDisplayWidth(text, width-prefixWidth)
+	if len(parts) == 0 {
+		return []string{prefix}
+	}
+
+	indent := strings.Repeat(" ", prefixWidth)
+	lines := make([]string, 0, len(parts))
+	for i, line := range parts {
+		if i == 0 {
+			lines = append(lines, prefix+line)
+			continue
+		}
+		lines = append(lines, indent+line)
+	}
+	return lines
+}
+
+func wrapByDisplayWidth(text string, width int) []string {
+	if width < 1 {
+		width = 1
+	}
+
+	var (
+		lines []string
+		sb    strings.Builder
+		w     int
+	)
+
+	for _, r := range text {
+		if r == '\n' {
+			lines = append(lines, sb.String())
+			sb.Reset()
+			w = 0
+			continue
+		}
+
+		rw := runewidth.RuneWidth(r)
+		if rw < 0 {
+			rw = 0
+		}
+		if w > 0 && w+rw > width {
+			lines = append(lines, sb.String())
+			sb.Reset()
+			w = 0
+		}
+
+		sb.WriteRune(r)
+		w += rw
+	}
+
+	if sb.Len() > 0 || len(lines) == 0 {
+		lines = append(lines, sb.String())
+	}
+
+	return lines
 }
 
 // overlayCenter 将弹窗字符串居中叠加在底层页面上

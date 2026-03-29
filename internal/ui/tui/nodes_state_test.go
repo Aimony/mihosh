@@ -47,3 +47,22 @@ func TestNodesState_ApplyTestDone_AdvancesBatchTarget(t *testing.T) {
 		t.Fatalf("expected batch to finish and clear status, got testing=%v target=%q active=%v", state.testing, state.testingTarget, state.testAllActive)
 	}
 }
+
+func TestNodesState_FailureModalSupportsHomeAndEnd(t *testing.T) {
+	state := NodesState{
+		showFailureDetail: true,
+		failureScrollTop:  5,
+	}
+
+	homeMsg := tea.KeyMsg{Type: tea.KeyHome}
+	state, _ = state.Update(homeMsg, nil, nil, "", 0)
+	if state.failureScrollTop != 0 {
+		t.Fatalf("expected home to jump top, got %d", state.failureScrollTop)
+	}
+
+	endMsg := tea.KeyMsg{Type: tea.KeyEnd}
+	state, _ = state.Update(endMsg, nil, nil, "", 0)
+	if state.failureScrollTop <= 0 {
+		t.Fatalf("expected end to move scroll near bottom, got %d", state.failureScrollTop)
+	}
+}

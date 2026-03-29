@@ -183,6 +183,11 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 			}
 		case key.Matches(msg, keys.Down):
 			s.failureScrollTop++
+		case key.Matches(msg, keys.Home):
+			s.failureScrollTop = 0
+		case key.Matches(msg, keys.End):
+			// 交由渲染层按可见行数钳制到末尾
+			s.failureScrollTop = 1 << 30
 		case msg.String() == "f", msg.String() == "esc":
 			s.showFailureDetail = false
 			s.failureScrollTop = 0
