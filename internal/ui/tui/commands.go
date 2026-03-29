@@ -324,6 +324,40 @@ func hasScheme(addr string) bool {
 	return len(addr) > 7 && (addr[:7] == "http://" || addr[:8] == "https://" || addr[:9] == "socks5://")
 }
 
+// convertToConnectionsResponse 将 api.ConnectionsData 转换为 model.ConnectionsResponse
+func convertToConnectionsResponse(data api.ConnectionsData) *model.ConnectionsResponse {
+	connections := make([]model.Connection, len(data.Connections))
+	for i, conn := range data.Connections {
+		connections[i] = model.Connection{
+			ID:            conn.ID,
+			Upload:        conn.Upload,
+			Download:      conn.Download,
+			Start:         conn.Start,
+			Chains:        conn.Chains,
+			Rule:          conn.Rule,
+			RulePayload:   conn.RulePayload,
+			DownloadSpeed: conn.DownloadSpeed,
+			UploadSpeed:   conn.UploadSpeed,
+			Metadata: model.Metadata{
+				Network:         conn.Metadata.Network,
+				Type:            conn.Metadata.Type,
+				SourceIP:        conn.Metadata.SourceIP,
+				DestinationIP:   conn.Metadata.DestinationIP,
+				SourcePort:      conn.Metadata.SourcePort,
+				DestinationPort: conn.Metadata.DestinationPort,
+				Host:            conn.Metadata.Host,
+				Process:         conn.Metadata.Process,
+				ProcessPath:     conn.Metadata.ProcessPath,
+			},
+		}
+	}
+	return &model.ConnectionsResponse{
+		DownloadTotal: data.DownloadTotal,
+		UploadTotal:   data.UploadTotal,
+		Connections:   connections,
+	}
+}
+
 // testAllSites 批量测试所有网站
 func testAllSites(proxyAddr string, sites []model.SiteTest, timeout int) tea.Cmd {
 	return func() tea.Msg {

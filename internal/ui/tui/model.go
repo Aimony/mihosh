@@ -11,80 +11,43 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 )
 
-// Model TUI 主模型
+// Model TUI 主模型（仅保留全局共享状态）
 type Model struct {
-	client            *api.Client
-	config            *config.Config
-	proxySvc          *service.ProxyService
-	configSvc         *service.ConfigService
-	connSvc           *service.ConnectionService
-	groups            map[string]model.Group
-	proxies           map[string]model.Proxy
-	connections       *model.ConnectionsResponse
-	groupNames        []string
-	selectedGroup     int
-	selectedProxy     int
-	selectedSetting   int
-	width             int
-	height            int
-	err               error
-	testURL           string
-	timeout           int
-	testing           bool
-	testPending       int // 批量测速剩余任务数
-	currentProxies    []string
-	currentPage       components.PageType
-	editMode          bool
-	editValue         string
-	editCursor        int      // 编辑时光标位置
-	testFailures      []string // 记录测速失败的节点
-	showFailureDetail bool     // 是否显示测速失败详情
-	// 节点页面滚动状态
-	groupScrollTop int // 策略组列表滚动偏移
-	proxyScrollTop int // 节点列表滚动偏移
-	// 连接页面状态
-	selectedConn       int               // 选中的连接索引
-	connScrollTop      int               // 连接列表滚动偏移
-	connFilterMode     bool              // 是否处于过滤输入模式
-	connFilter         string            // 连接过滤关键词
-	connDetailMode     bool              // 是否处于详情查看模式
-	connDetailSnapshot *model.Connection // 详情模式下的连接快照
-	connIPInfo         *model.IPInfo     // 目标IP的地理信息
-	connDetailScroll   int               // 详情页面滚动偏移量
-	// 图表数据
-	chartData    *model.ChartData // 图表历史数据
-	lastUpload   int64            // 上次上传总量（用于计算速度）
-	lastDownload int64            // 上次下载总量
-	// WebSocket客户端
-	wsClient  *api.WSClient      // WebSocket流客户端
-	wsMsgChan chan interface{}   // WebSocket消息通道
-	wsCtx     context.Context    // WebSocket上下文，用于取消监听
-	wsCancel  context.CancelFunc // WebSocket取消函数
-	// 历史连接
-	closedConnections []model.Connection          // 已关闭的连接历史（最多1000条）
-	connViewMode      int                         // 0=活跃连接, 1=历史连接
-	prevConnIDs       map[string]model.Connection // 上次推送的连接ID映射（用于检测关闭）
-	// 日志页面状态
-	logs               []model.LogEntry // 日志列表（最多保留1000条）
-	filteredLogIndices []int            // 过滤后的日志索引缓存
-	logLevel           int              // 当前级别索引（0=debug, 1=info, 2=warning, 3=error, 4=silent）
-	logFilter        string           // 搜索关键词
-	logFilterMode    bool             // 是否处于过滤输入模式
-	selectedLog      int              // 选中的日志索引
-	logScrollTop     int              // 日志列表滚动偏移
-	logHScrollOffset int              // 日志水平滚动偏移
-	// 规则页面状态
-	rules               []model.Rule // 规则列表
-	filteredRuleIndices []int        // 过滤后的规则索引缓存
-	ruleFilter          string       // 搜索关键词
-	ruleFilterMode bool         // 是否处于过滤输入模式
-	selectedRule   int          // 选中的规则索引
-	ruleScrollTop  int          // 规则列表滚动偏移
-	// 网站测速状态
-	siteTests        []model.SiteTest // 网站测试列表
-	selectedSiteTest int              // 选中的网站索引
-	proxyAddr        string           // 代理地址（用于网站测速）
-	showHelp         bool             // 是否显示帮助页面
+	// 基础设施
+	client    *api.Client
+	config    *config.Config
+	proxySvc  *service.ProxyService
+	configSvc *service.ConfigService
+	connSvc   *service.ConnectionService
+
+	// 路由与布局
+	currentPage components.PageType
+	width       int
+	height      int
+	showHelp    bool
+
+	// 测速参数（供 NodesState 使用）
+	testURL string
+	timeout int
+
+	// 共享图表数据（Connections 页面和 StatusBar 共用）
+	chartData *model.ChartData
+
+	// 全局错误（状态栏显示）
+	err error
+
+	// WebSocket
+	wsClient  *api.WSClient
+	wsMsgChan chan interface{}
+	wsCtx     context.Context
+	wsCancel  context.CancelFunc
+
+	// 五个页面子状态
+	nodesState    NodesState
+	connsState    ConnsState
+	logsState     LogsState
+	rulesState    RulesState
+	settingsState SettingsState
 }
 
 // 消息类型
@@ -235,37 +198,34 @@ var keys = keyMap{
 func NewModel(client *api.Client, testURL string, timeout int) Model {
 	cfg, err := config.Load()
 	if err != nil || cfg == nil {
-		// 配置加载失败时使用默认配置
 		cfg = &config.DefaultConfig
 	}
 
-	// 创建服务实例
 	proxySvc := service.NewProxyService(client, testURL, timeout)
 	configSvc := service.NewConfigService()
 	connSvc := service.NewConnectionService(client)
 
-	// 创建WebSocket客户端
 	wsClient := api.NewWSClient(cfg.APIAddress, cfg.Secret)
-
-	// 创建WebSocket上下文（全局生命周期，不随页面切换销毁）
 	wsCtx, wsCancel := context.WithCancel(context.Background())
 
 	return Model{
-		client:      client,
-		config:      cfg,
-		proxySvc:    proxySvc,
-		configSvc:   configSvc,
-		connSvc:     connSvc,
-		testURL:     testURL,
-		timeout:     timeout,
-		currentPage: components.PageNodes,
-		chartData:   model.NewChartData(60),
-		wsClient:    wsClient,
-		wsMsgChan:   make(chan interface{}, 100), // 带缓冲的消息通道
-		wsCtx:       wsCtx,                       // WebSocket全局上下文
-		wsCancel:    wsCancel,                     // WebSocket全局取消函数
-		logLevel:    1,                           // 默认info级别
-		siteTests:   model.DefaultSiteTests(),    // 初始化网站测试列表
-		proxyAddr:   cfg.ProxyAddress,            // 使用配置的代理地址
+		client:        client,
+		config:        cfg,
+		proxySvc:      proxySvc,
+		configSvc:     configSvc,
+		connSvc:       connSvc,
+		testURL:       testURL,
+		timeout:       timeout,
+		currentPage:   components.PageNodes,
+		chartData:     model.NewChartData(60),
+		wsClient:      wsClient,
+		wsMsgChan:     make(chan interface{}, 100),
+		wsCtx:         wsCtx,
+		wsCancel:      wsCancel,
+		nodesState:    NodesState{},
+		connsState:    NewConnsState(cfg.ProxyAddress, model.DefaultSiteTests()),
+		logsState:     NewLogsState(),
+		rulesState:    RulesState{},
+		settingsState: SettingsState{},
 	}
 }

@@ -1,11 +1,8 @@
 package tui
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/aimony/mihosh/internal/domain/model"
-	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,26 +41,25 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// Update 更新
+// Update 消息路由器：全局消息自处理，页面消息分发到子状态
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	// ── 全局：窗口大小 ──
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
 
+	// ── 全局：鼠标事件 ──
 	case tea.MouseMsg:
-		// 处理鼠标点击和滚轮事件
 		switch msg.Type {
 		case tea.MouseLeft:
-			// 获取侧边栏菜单区域
 			statusBarHeight := 2
 			contentHeight := m.height - statusBarHeight
 			if contentHeight < 5 {
 				contentHeight = 5
 			}
-
-			// 检查点击是否在侧边栏区域
 			if msg.X >= 0 && msg.X < components.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
 				clickedPage := components.GetClickedPage(msg.X, msg.Y)
 				if clickedPage >= 0 && clickedPage < components.PageCount {
@@ -78,40 +74,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	// ── 全局：键盘 ──
 	case tea.KeyMsg:
-		// 帮助页面弹窗处理
+		// 帮助弹窗拦截
 		if m.showHelp {
 			switch msg.String() {
 			case "esc", "q", "?":
 				m.showHelp = false
 				return m, nil
 			}
-			// 显示帮助时拦截其他按键(除了强制退出)
 			if key.Matches(msg, keys.Quit) {
 				return m, tea.Quit
 			}
 			return m, nil
 		}
 
-		// 全局帮助快捷键
+		// 全局帮助
 		if msg.String() == "?" {
 			m.showHelp = true
 			return m, nil
-		}
-
-		// 编辑模式特殊处理
-		if m.editMode {
-			return m.handleEditMode(msg)
-		}
-
-		// 日志过滤模式特殊处理
-		if m.logFilterMode {
-			return m.handleLogFilterMode(msg)
-		}
-
-		// 规则过滤模式特殊处理
-		if m.ruleFilterMode {
-			return m.handleRuleFilterMode(msg)
 		}
 
 		// 全局快捷键
@@ -151,267 +132,132 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.refreshCurrentPage()
 		}
 
-		// 页面特定快捷键
-		switch m.currentPage {
-		case components.PageNodes:
-			return m.updateNodesPage(msg)
-		case components.PageConnections:
-			return m.updateConnectionsPage(msg)
-		case components.PageSettings:
-			return m.updateSettingsPage(msg)
-		case components.PageLogs:
-			return m.updateLogsPage(msg)
-		case components.PageRules:
-			return m.updateRulesPage(msg)
-		}
+		// 分发到页面子状态
+		return m.dispatchKeyToPage(msg)
+
+	// ── 数据消息：分发到子状态 ──
 
 	case groupsMsg:
-		// 保存当前选中的策略组名称和节点名称
-		var selectedGroupName string
-		var selectedProxyName string
-		if len(m.groupNames) > 0 && m.selectedGroup < len(m.groupNames) {
-			selectedGroupName = m.groupNames[m.selectedGroup]
-		}
-		if len(m.currentProxies) > 0 && m.selectedProxy < len(m.currentProxies) {
-			selectedProxyName = m.currentProxies[m.selectedProxy]
-		}
-
-		m.groups = msg.groups
-		// 使用 API 返回的有序名称列表，保持配置文件中的原始顺序
-		m.groupNames = msg.orderedNames
-
-		// 恢复之前选中的策略组
-		if selectedGroupName != "" {
-			for i, name := range m.groupNames {
-				if name == selectedGroupName {
-					m.selectedGroup = i
-					break
-				}
-			}
-		}
-
-		m.updateCurrentProxies()
-
-		// 恢复之前选中的节点
-		if selectedProxyName != "" {
-			for i, name := range m.currentProxies {
-				if name == selectedProxyName {
-					m.selectedProxy = i
-					break
-				}
-			}
-		}
+		m.nodesState = m.nodesState.ApplyGroups(msg.groups, msg.orderedNames)
 
 	case proxiesMsg:
-		m.proxies = msg
+		m.nodesState = m.nodesState.ApplyProxies(msg)
 
 	case connectionsMsg:
-		m.connections = msg
-		// 更新图表数据 - 连接数
+		m.connsState = m.connsState.ApplyConnections(msg)
 		if msg != nil && m.chartData != nil {
 			m.chartData.AddConnCountData(len(msg.Connections))
 		}
 
 	case memoryMsg:
-		// 更新内存历史数据
 		if m.chartData != nil {
 			m.chartData.AddMemoryData(msg.memory)
 		}
-		// 继续监听WebSocket消息（后台持续接收，不绑定页面）
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case trafficWSMsg:
-		// 更新速度图表数据
 		if m.chartData != nil {
 			m.chartData.AddSpeedData(msg.up, msg.down)
 		}
-		// 继续监听WebSocket消息（后台持续接收，不绑定页面）
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case connectionsWSMsg:
-		// 检测已关闭的连接
-		currentConnIDs := make(map[string]model.Connection)
-		for _, conn := range msg.data.Connections {
-			currentConnIDs[conn.ID] = model.Connection{
-				ID:            conn.ID,
-				Upload:        conn.Upload,
-				Download:      conn.Download,
-				Start:         conn.Start,
-				Chains:        conn.Chains,
-				Rule:          conn.Rule,
-				RulePayload:   conn.RulePayload,
-				DownloadSpeed: conn.DownloadSpeed,
-				UploadSpeed:   conn.UploadSpeed,
-				Metadata: model.Metadata{
-					Network:         conn.Metadata.Network,
-					Type:            conn.Metadata.Type,
-					SourceIP:        conn.Metadata.SourceIP,
-					DestinationIP:   conn.Metadata.DestinationIP,
-					SourcePort:      conn.Metadata.SourcePort,
-					DestinationPort: conn.Metadata.DestinationPort,
-					Host:            conn.Metadata.Host,
-					Process:         conn.Metadata.Process,
-					ProcessPath:     conn.Metadata.ProcessPath,
-				},
-			}
-		}
-
-		// 找出已关闭的连接（在上次存在但这次不存在）
-		if m.prevConnIDs != nil {
-			for id, conn := range m.prevConnIDs {
-				if _, exists := currentConnIDs[id]; !exists {
-					// 这个连接已关闭，加入历史记录
-					m.closedConnections = append([]model.Connection{conn}, m.closedConnections...)
-					// 限制历史记录最多1000条
-					if len(m.closedConnections) > 1000 {
-						m.closedConnections = m.closedConnections[:1000]
-					}
-				}
-			}
-		}
-
-		// 更新上次连接ID映射
-		m.prevConnIDs = currentConnIDs
-
-		// 更新连接数据（转换为model.ConnectionsResponse）
-		m.connections = convertToConnectionsResponse(msg.data)
-		// 更新连接数图表
+		m.connsState = m.connsState.ApplyWSConnections(msg.data)
 		if m.chartData != nil {
 			m.chartData.AddConnCountData(len(msg.data.Connections))
 		}
-		// 继续监听WebSocket消息（后台持续接收，不绑定页面）
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
-	case connTickMsg:
-		// 定时器触发：仅继续定时器（连接数据由WebSocket推送）
-		if m.currentPage == components.PageConnections {
-			return m, connTick()
-		}
-
-	case logsTickMsg:
-		// 日志页面定时器触发：仅继续定时器（WebSocket监听由消息自驱动）
-		if m.currentPage == components.PageLogs {
-			return m, logsTick()
-		}
-
-	case testDoneMsg:
-		// 记录测速失败的节点
-		if msg.err != nil {
-			failureInfo := fmt.Sprintf("%s: %s", msg.name, msg.err.Error())
-			m.testFailures = append(m.testFailures, failureInfo)
-		}
-
-		// 批量测速模式：递减计数器，归零时解锁
-		if m.testPending > 0 {
-			m.testPending--
-			if m.testPending == 0 {
-				m.testing = false
-			}
-		} else {
-			// 单节点测速：直接解锁
-			m.testing = false
-		}
-
-		return m, fetchProxies(m.client)
-
-	case testAllDoneMsg:
-		// 记录测速失败的节点
-		for name, delay := range msg.results {
-			if delay == -1 { // -1 represents an explicit error based on Task 2
-				failureInfo := fmt.Sprintf("%s: timeout or error", name)
-				m.testFailures = append(m.testFailures, failureInfo)
-			}
-		}
-		m.testing = false
-		// 获取最新代理状态
-		return m, fetchProxies(m.client)
-
-	case configSavedMsg:
-		m.editMode = false
-		m.err = nil
-
-	case connectionClosedMsg:
-		// 连接关闭后调整选择索引
-		if m.selectedConn > 0 {
-			m.selectedConn--
-		}
-
-	case allConnectionsClosedMsg:
-		// 所有连接关闭后重置状态
-		m.selectedConn = 0
-		m.connScrollTop = 0
-
-	case ipInfoMsg:
-		// 保存IP地理信息
-		if msg.info != nil {
-			m.connIPInfo = msg.info
-		}
-
 	case logsWSMsg:
-		// 添加日志到列表
-		newLog := model.LogEntry{
-			Type:      msg.logType,
-			Payload:   msg.payload,
-			Timestamp: time.Now(),
-		}
-		m.logs = append([]model.LogEntry{newLog}, m.logs...)
-		// 限制日志最多1000条
-		if len(m.logs) > 1000 {
-			m.logs = m.logs[:1000]
-		}
-		m.updateFilteredLogs() // 更新缓存
-		// 继续监听WebSocket消息（后台持续接收，不绑定页面）
+		m.logsState = m.logsState.AppendLog(msg.logType, msg.payload)
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
 	case rulesMsg:
-		// 更新规则列表
-		m.rules = msg
-		m.updateFilteredRules() // 更新缓存
+		m.rulesState = m.rulesState.ApplyRules(msg)
 
 	case siteTestMsg:
-		// 更新网站测速结果
-		for i := range m.siteTests {
-			if m.siteTests[i].Name == msg.name {
-				m.siteTests[i].Testing = false
-				if msg.err != nil {
-					m.siteTests[i].Delay = 0
-					m.siteTests[i].Error = "timeout"
-				} else {
-					m.siteTests[i].Delay = msg.delay
-					m.siteTests[i].Error = ""
-				}
-				break
-			}
+		m.connsState = m.connsState.ApplySiteTestResult(msg.name, msg.delay, msg.err)
+
+	case testDoneMsg:
+		m.nodesState = m.nodesState.ApplyTestDone(msg.name, msg.delay, msg.err)
+		return m, fetchProxies(m.client)
+
+	case testAllDoneMsg:
+		m.nodesState = m.nodesState.ApplyTestAllDone(msg.results)
+		return m, fetchProxies(m.client)
+
+	case ipInfoMsg:
+		if msg.info != nil {
+			m.connsState = m.connsState.ApplyIPInfo(msg.info)
+		}
+
+	case connectionClosedMsg:
+		m.connsState = m.connsState.ApplyConnectionClosed()
+
+	case allConnectionsClosedMsg:
+		m.connsState = m.connsState.ApplyAllConnectionsClosed()
+
+	case connTickMsg:
+		if m.currentPage == components.PageConnections {
+			return m, connTick()
+		}
+
+	case logsTickMsg:
+		if m.currentPage == components.PageLogs {
+			return m, logsTick()
 		}
 
 	case errMsg:
 		m.err = msg
-		m.testing = false
-		m.testPending = 0
+		m.nodesState.testing = false
+		m.nodesState.testPending = 0
 	}
 
 	return m, nil
 }
 
-// onPageChange 页面切换时的处理（WebSocket后台持续运行，不随页面切换启停）
+// dispatchKeyToPage 将按键分发到当前页面子状态
+func (m Model) dispatchKeyToPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch m.currentPage {
+	case components.PageNodes:
+		m.nodesState, cmd = m.nodesState.Update(msg, m.client, m.proxySvc, m.testURL, m.timeout)
+
+	case components.PageConnections:
+		m.connsState, cmd = m.connsState.Update(msg, m.client, m.timeout)
+
+	case components.PageLogs:
+		m.logsState, cmd = m.logsState.Update(msg)
+
+	case components.PageRules:
+		m.rulesState, cmd = m.rulesState.Update(msg, m.client)
+
+	case components.PageSettings:
+		var newCfg, proxyAddr = m.config, ""
+		m.settingsState, newCfg, proxyAddr, cmd = m.settingsState.Update(msg, m.config, m.configSvc)
+		m.config = newCfg
+		if proxyAddr != "" {
+			m.connsState = m.connsState.UpdateProxyAddr(proxyAddr)
+		}
+	}
+	return m, cmd
+}
+
+// onPageChange 页面切换处理
 func (m *Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
 	case components.PageConnections:
-		// 重置 prevConnIDs 快照，避免积压的关闭记录瞬间爆发
-		m.prevConnIDs = nil
-		return tea.Batch(
-			fetchConnections(m.client),
-			connTick(),
-		)
+		m.connsState = m.connsState.ResetPrevConnIDs()
+		return tea.Batch(fetchConnections(m.client), connTick())
 	case components.PageLogs:
 		return logsTick()
 	case components.PageRules:
@@ -425,57 +271,37 @@ func (m *Model) refreshCurrentPage() tea.Cmd {
 	switch m.currentPage {
 	case components.PageNodes:
 		return tea.Batch(fetchGroups(m.client), fetchProxies(m.client))
-	case components.PageConnections:
-		// connections数据由WebSocket推送，无需手动刷新
-		return nil
 	case components.PageSettings:
 		cfg, _ := m.configSvc.LoadConfig()
 		m.config = cfg
-		return nil
 	}
 	return nil
 }
 
-// updateCurrentProxies 更新当前显示的代理列表
-func (m *Model) updateCurrentProxies() {
-	if len(m.groupNames) > 0 && m.selectedGroup < len(m.groupNames) {
-		groupName := m.groupNames[m.selectedGroup]
-		if group, ok := m.groups[groupName]; ok {
-			m.currentProxies = group.All
+// handleMouseScroll 处理鼠标滚轮滚动
+func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
+	if x >= 0 && x < components.SidebarWidth {
+		if up {
+			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
+		} else {
+			m.currentPage = (m.currentPage + 1) % components.PageCount
 		}
+		return m, m.onPageChange()
 	}
+
+	switch m.currentPage {
+	case components.PageNodes:
+		m.nodesState = m.nodesState.HandleMouseScroll(up)
+	case components.PageConnections:
+		m.connsState = m.connsState.HandleMouseScroll(up)
+	case components.PageLogs:
+		m.logsState = m.logsState.HandleMouseScroll(up)
+	case components.PageRules:
+		m.rulesState = m.rulesState.HandleMouseScroll(up)
+	case components.PageSettings:
+		m.settingsState = m.settingsState.HandleMouseScroll(up)
+	}
+
+	return m, nil
 }
 
-// convertToConnectionsResponse 将api.ConnectionsData转换为model.ConnectionsResponse
-func convertToConnectionsResponse(data api.ConnectionsData) *model.ConnectionsResponse {
-	connections := make([]model.Connection, len(data.Connections))
-	for i, conn := range data.Connections {
-		connections[i] = model.Connection{
-			ID:            conn.ID,
-			Upload:        conn.Upload,
-			Download:      conn.Download,
-			Start:         conn.Start,
-			Chains:        conn.Chains,
-			Rule:          conn.Rule,
-			RulePayload:   conn.RulePayload,
-			DownloadSpeed: conn.DownloadSpeed,
-			UploadSpeed:   conn.UploadSpeed,
-			Metadata: model.Metadata{
-				Network:         conn.Metadata.Network,
-				Type:            conn.Metadata.Type,
-				SourceIP:        conn.Metadata.SourceIP,
-				DestinationIP:   conn.Metadata.DestinationIP,
-				SourcePort:      conn.Metadata.SourcePort,
-				DestinationPort: conn.Metadata.DestinationPort,
-				Host:            conn.Metadata.Host,
-				Process:         conn.Metadata.Process,
-				ProcessPath:     conn.Metadata.ProcessPath,
-			},
-		}
-	}
-	return &model.ConnectionsResponse{
-		DownloadTotal: data.DownloadTotal,
-		UploadTotal:   data.UploadTotal,
-		Connections:   connections,
-	}
-}
