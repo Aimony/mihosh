@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -26,31 +27,44 @@ const (
 
 var sortOrderLabels = []string{"原始顺序", "A-Z 升序", "Z-A 降序"}
 
+type nodesMouseFocus int
+
+const (
+	nodesMouseFocusProxy nodesMouseFocus = iota
+	nodesMouseFocusGroup
+	nodesDoubleClickThreshold = 350 * time.Millisecond
+)
+
 // NodesState 节点页面完整状态
 type NodesState struct {
-	groups            map[string]model.Group
-	proxies           map[string]model.Proxy
-	groupNames        []string
-	currentProxies    []string
-	selectedGroup     int
-	selectedProxy     int
-	groupScrollTop    int
-	proxyScrollTop    int
-	testPending       int
-	testing           bool
+	groups         map[string]model.Group
+	proxies        map[string]model.Proxy
+	groupNames     []string
+	currentProxies []string
+	selectedGroup  int
+	selectedProxy  int
+	groupScrollTop int
+	proxyScrollTop int
+	testPending    int
+	testing        bool
 	// Ring Buffer for test failures
-	testFailures [testFailureCap]string
-	failHead     int // 写入位置
-	failCount    int // 已写入总数（上限 testFailureCap）
-	showFailureDetail   bool
-	failureScrollTop    int
+	testFailures      [testFailureCap]string
+	failHead          int // 写入位置
+	failCount         int // 已写入总数（上限 testFailureCap）
+	showFailureDetail bool
+	failureScrollTop  int
 	// 排序
-	proxySortOrder      ProxySortOrder
-	originalProxies     []string // 记录原始顺序，便于恢复
+	proxySortOrder  ProxySortOrder
+	originalProxies []string // 记录原始顺序，便于恢复
 	// 搜索
-	nodeFilter          string
-	nodeFilterMode      bool
+	nodeFilter           string
+	nodeFilterMode       bool
 	filteredProxyIndices []int // 过滤结果的索引缓存（对应 currentProxies 的下标）
+	// 鼠标
+	mouseFocus      nodesMouseFocus
+	lastMouseTarget pages.NodesMouseTarget
+	lastMouseIndex  int
+	lastMouseAt     time.Time
 }
 
 // appendTestFailure 向 Ring Buffer 追加一条测速失败记录
@@ -97,7 +111,7 @@ func (s NodesState) sortedTestFailures() []string {
 		sort.Slice(result, func(i, j int) bool {
 			return nodeName(result[i]) > nodeName(result[j])
 		})
-	// SortOrderOriginal: 保持 TestFailures() 返回的最新在前顺序
+		// SortOrderOriginal: 保持 TestFailures() 返回的最新在前顺序
 	}
 	return result
 }
@@ -171,6 +185,7 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 
 	switch {
 	case key.Matches(msg, keys.Up):
+		s.mouseFocus = nodesMouseFocusProxy
 		if s.selectedProxy > 0 {
 			s.selectedProxy--
 			if s.selectedProxy < s.proxyScrollTop {
@@ -179,11 +194,13 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 		}
 
 	case key.Matches(msg, keys.Down):
+		s.mouseFocus = nodesMouseFocusProxy
 		if s.selectedProxy < len(display)-1 {
 			s.selectedProxy++
 		}
 
 	case key.Matches(msg, keys.Left):
+		s.mouseFocus = nodesMouseFocusGroup
 		if s.selectedGroup > 0 {
 			s.selectedGroup--
 			s.updateCurrentProxies()
@@ -195,6 +212,7 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 		}
 
 	case key.Matches(msg, keys.Right):
+		s.mouseFocus = nodesMouseFocusGroup
 		if s.selectedGroup < len(s.groupNames)-1 {
 			s.selectedGroup++
 			s.updateCurrentProxies()
@@ -307,6 +325,80 @@ func (s *NodesState) updateFilteredProxies() {
 	}
 }
 
+// HandleMouseLeft 处理 nodes 页面左键单击/双击
+func (s NodesState) HandleMouseLeft(pageY, pageWidth, pageHeight int, client *api.Client) (NodesState, tea.Cmd) {
+	if s.showFailureDetail {
+		return s, nil
+	}
+
+	hit := pages.ResolveNodesMouseHit(s.ToPageState(pageWidth, pageHeight), pageY)
+	now := time.Now()
+
+	switch hit.Target {
+	case pages.NodesMouseTargetGroup:
+		if hit.Index < 0 || hit.Index >= len(s.groupNames) {
+			return s, nil
+		}
+		s.mouseFocus = nodesMouseFocusGroup
+		s.applyGroupSelection(hit.Index)
+		s.isMouseDoubleClick(pages.NodesMouseTargetGroup, hit.Index, now)
+		return s, nil
+
+	case pages.NodesMouseTargetProxy:
+		display := s.displayProxies()
+		if hit.Index < 0 || hit.Index >= len(display) {
+			return s, nil
+		}
+		s.mouseFocus = nodesMouseFocusProxy
+		s.selectedProxy = hit.Index
+		if s.selectedProxy < s.proxyScrollTop {
+			s.proxyScrollTop = s.selectedProxy
+		}
+
+		if !s.isMouseDoubleClick(pages.NodesMouseTargetProxy, hit.Index, now) {
+			return s, nil
+		}
+		if len(s.groupNames) == 0 || s.selectedGroup < 0 || s.selectedGroup >= len(s.groupNames) {
+			return s, nil
+		}
+		groupName := s.groupNames[s.selectedGroup]
+		proxyName := display[s.selectedProxy]
+		return s, selectProxy(client, groupName, proxyName)
+	}
+
+	return s, nil
+}
+
+func (s *NodesState) applyGroupSelection(groupIdx int) {
+	if groupIdx < 0 || groupIdx >= len(s.groupNames) {
+		return
+	}
+	if groupIdx == s.selectedGroup {
+		return
+	}
+
+	s.selectedGroup = groupIdx
+	s.updateCurrentProxies()
+	s.selectedProxy = 0
+	s.proxyScrollTop = 0
+	if s.selectedGroup < s.groupScrollTop {
+		s.groupScrollTop = s.selectedGroup
+	}
+}
+
+func (s *NodesState) isMouseDoubleClick(target pages.NodesMouseTarget, idx int, now time.Time) bool {
+	isDoubleClick := target == s.lastMouseTarget &&
+		idx == s.lastMouseIndex &&
+		!s.lastMouseAt.IsZero() &&
+		now.Sub(s.lastMouseAt) <= nodesDoubleClickThreshold
+
+	s.lastMouseTarget = target
+	s.lastMouseIndex = idx
+	s.lastMouseAt = now
+
+	return isDoubleClick
+}
+
 // HandleMouseScroll 处理鼠标滚轮（弹窗打开时控制弹窗滚动，否则控制节点列表）
 func (s NodesState) HandleMouseScroll(up bool) NodesState {
 	if s.showFailureDetail {
@@ -317,6 +409,11 @@ func (s NodesState) HandleMouseScroll(up bool) NodesState {
 		} else {
 			s.failureScrollTop++
 		}
+		return s
+	}
+
+	// 暂不支持策略组滚轮选择，保留当前行为仅控制节点列表
+	if s.mouseFocus == nodesMouseFocusGroup {
 		return s
 	}
 

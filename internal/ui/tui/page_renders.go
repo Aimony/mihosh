@@ -1,13 +1,25 @@
 package tui
 
 import (
+	"github.com/aimony/mihosh/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/ui/tui/pages"
 )
 
 // renderNodesPage 渲染节点管理页面
 func (m Model) renderNodesPage() string {
+	sidebarRenderedWidth := components.SidebarWidth + 1
+	mainWidth := m.width - sidebarRenderedWidth
+	if mainWidth < common.MinMainWidth {
+		mainWidth = common.MinMainWidth
+	}
+	pageWidth := mainWidth - 2
+	if pageWidth < common.MinMainWidth {
+		pageWidth = common.MinMainWidth
+	}
+
 	pageHeight := m.height - 8
-	state := m.nodesState.ToPageState(m.width, pageHeight)
+	state := m.nodesState.ToPageState(pageWidth, pageHeight)
 	return pages.RenderNodesPage(state)
 }
 

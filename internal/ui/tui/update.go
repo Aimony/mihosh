@@ -54,8 +54,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// ── 全局：鼠标事件 ──
 	case tea.MouseMsg:
-		switch msg.Type {
-		case tea.MouseLeft:
+		switch {
+		case isMouseLeftPress(msg):
 			statusBarHeight := common.StatusBarHeight
 			contentHeight := m.height - statusBarHeight
 			if contentHeight < common.MinContentHeight {
@@ -68,9 +68,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.onPageChange()
 				}
 			}
-		case tea.MouseWheelUp:
+
+			if m.currentPage == components.PageNodes {
+				return m.handleNodesMouseLeft(msg.X, msg.Y)
+			}
+		case isMouseWheelUp(msg):
 			return m.handleMouseScroll(true, msg.X)
-		case tea.MouseWheelDown:
+		case isMouseWheelDown(msg):
 			return m.handleMouseScroll(false, msg.X)
 		}
 		return m, nil
@@ -306,3 +310,65 @@ func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleNodesMouseLeft(x, y int) (tea.Model, tea.Cmd) {
+	statusBarHeight := common.StatusBarHeight
+	contentHeight := m.height - statusBarHeight
+	if contentHeight < common.MinContentHeight {
+		contentHeight = common.MinContentHeight
+	}
+	if y < 0 || y >= contentHeight {
+		return m, nil
+	}
+
+	sidebarRenderedWidth := components.SidebarWidth + 1
+	mainWidth := m.width - sidebarRenderedWidth
+	if mainWidth < common.MinMainWidth {
+		mainWidth = common.MinMainWidth
+	}
+
+	mainX := x - sidebarRenderedWidth
+	if mainX <= 0 || mainX >= mainWidth-1 {
+		return m, nil
+	}
+	if y <= 0 || y >= contentHeight-1 {
+		return m, nil
+	}
+
+	contentY := y - 1
+	const pageContentOffsetY = 2 // 标题 + 空行
+	if contentY < pageContentOffsetY {
+		return m, nil
+	}
+
+	pageY := contentY - pageContentOffsetY
+	pageHeight := m.height - 8
+	pageWidth := mainWidth - 2
+	if pageWidth < common.MinMainWidth {
+		pageWidth = common.MinMainWidth
+	}
+
+	var cmd tea.Cmd
+	m.nodesState, cmd = m.nodesState.HandleMouseLeft(pageY, pageWidth, pageHeight, m.client)
+	return m, cmd
+}
+
+func isMouseLeftPress(msg tea.MouseMsg) bool {
+	if msg.Button == tea.MouseButtonLeft {
+		return msg.Action == tea.MouseActionPress
+	}
+	return msg.Type == tea.MouseLeft
+}
+
+func isMouseWheelUp(msg tea.MouseMsg) bool {
+	if msg.Button == tea.MouseButtonWheelUp {
+		return msg.Action == tea.MouseActionPress
+	}
+	return msg.Type == tea.MouseWheelUp
+}
+
+func isMouseWheelDown(msg tea.MouseMsg) bool {
+	if msg.Button == tea.MouseButtonWheelDown {
+		return msg.Action == tea.MouseActionPress
+	}
+	return msg.Type == tea.MouseWheelDown
+}
