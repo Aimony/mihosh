@@ -11,6 +11,12 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+const (
+	nodesFixedLines     = 8
+	nodesMinHeight      = 10
+	nodesDefaultNameLen = 8
+)
+
 // NodesPageState 节点页面状态（由 Model 传入）
 type NodesPageState struct {
 	Groups            map[string]model.Group
@@ -60,36 +66,18 @@ func renderScrollbar(height, total, scrollTop, currentIdx int) string {
 	// 判断当前行 (currentIdx) 是否在渲染块内
 	// currentIdx 是相对于列表可见区域的索引 (0 到 height-1)
 	if float64(currentIdx) >= barStart && float64(currentIdx) < barStart+barHeight {
-		return "┃"
+		return common.SymbolScrollbarThumb
 	}
-	return "│"
+	return common.SymbolScrollbarTrack
 }
 
 // RenderNodesPage 渲染节点管理页面
 func RenderNodesPage(state NodesPageState) string {
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFD700")).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(lipgloss.Color("#666"))
-
-	selectedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00FF00")).
-		Bold(true)
-
-	activeStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#1E90FF"))
-
-	dimStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666"))
-
 	// 计算可用高度（减去标签栏、状态栏、标题、帮助提示等固定区域）
 	// 策略组标题1行 + 节点标题1行 + 列表内表头2行 + 间隔2行 + 底部提示1行 = 约7行
-	fixedLines := 8
-	availableHeight := state.Height - fixedLines
-	if availableHeight < 10 {
-		availableHeight = 10
+	availableHeight := state.Height - nodesFixedLines
+	if availableHeight < nodesMinHeight {
+		availableHeight = nodesMinHeight
 	}
 
 	// 将可用空间分配给策略组和节点列表（比例约为 1:2）
@@ -108,9 +96,9 @@ func RenderNodesPage(state NodesPageState) string {
 		groupList = "  正在加载..."
 	} else {
 		// 计算各列的最大宽度
-		maxNameLen := 8 // 最小宽度
-		maxTypeLen := 8
-		maxNowLen := 8
+		maxNameLen := nodesDefaultNameLen // 最小宽度
+		maxTypeLen := nodesDefaultNameLen
+		maxNowLen := nodesDefaultNameLen
 
 		for _, name := range state.GroupNames {
 			nameWidth := displayWidth(name)
@@ -140,16 +128,12 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 
 		// 渲染表头
-		tableHeaderStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888")).
-			Bold(true)
-
 		header := fmt.Sprintf("  %s │ %s │ %s",
 			padString("名称", maxNameLen),
 			padString("类型", maxTypeLen),
 			padString("当前节点", maxNowLen),
 		)
-		groupList += tableHeaderStyle.Render(header) + "\n"
+		groupList += common.TableHeaderStyle.Render(header) + "\n"
 
 		// 渲染可见的策略组列表
 		endIdx := groupScrollTop + groupMaxLines
@@ -161,9 +145,9 @@ func RenderNodesPage(state NodesPageState) string {
 		for i := groupScrollTop; i < endIdx; i++ {
 			name := state.GroupNames[i]
 			group := state.Groups[name]
-			prefix := "  "
+			prefix := common.SymbolSelectInactive
 			if i == state.SelectedGroup {
-				prefix = "► "
+				prefix = common.SymbolSelectActive
 			}
 
 			// 计算这一行的内容
@@ -175,14 +159,14 @@ func RenderNodesPage(state NodesPageState) string {
 			)
 
 			if i == state.SelectedGroup {
-				content = selectedStyle.Render(content)
+				content = common.SelectedStyle.Render(content)
 			} else if group.Now != "" {
-				content = activeStyle.Render(content)
+				content = common.InactiveStyle.Render(content)
 			}
 
 			// 追加滚动条
 			bar := renderScrollbar(groupMaxLines, len(state.GroupNames), groupScrollTop, i-groupScrollTop)
-			lines = append(lines, content+" "+dimStyle.Render(bar))
+			lines = append(lines, content+" "+common.DimStyle.Render(bar))
 		}
 		groupList += strings.Join(lines, "\n")
 	}
@@ -201,7 +185,7 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 
 		// 计算节点名称的最大宽度
-		maxNameLen := 8 // 最小宽度
+		maxNameLen := nodesDefaultNameLen // 最小宽度
 		for _, name := range state.CurrentProxies {
 			nameWidth := displayWidth(name)
 			if nameWidth > maxNameLen {
@@ -223,16 +207,12 @@ func RenderNodesPage(state NodesPageState) string {
 		}
 
 		// 渲染表头
-		tableHeaderStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888")).
-			Bold(true)
-
 		header := fmt.Sprintf("  %s │ %s │ %s",
 			padString("名称", maxNameLen),
 			padString("延迟", delayColWidth),
 			padString("状态", statusColWidth),
 		)
-		proxyList += tableHeaderStyle.Render(header) + "\n"
+		proxyList += common.TableHeaderStyle.Render(header) + "\n"
 
 		// 渲染可见的节点列表
 		endIdx := proxyScrollTop + proxyMaxLines
@@ -245,17 +225,17 @@ func RenderNodesPage(state NodesPageState) string {
 			name := state.CurrentProxies[i]
 			proxy, exists := state.Proxies[name]
 
-			prefix := "  "
+			prefix := common.SymbolSelectInactive
 			if i == state.SelectedProxy {
-				prefix = selectedStyle.Render("► ")
+				prefix = common.SelectedStyle.Render(common.SymbolSelectActive)
 			}
 
 			// 名称部分
 			namePart := padString(name, maxNameLen)
 			if i == state.SelectedProxy {
-				namePart = selectedStyle.Render(namePart)
+				namePart = common.SelectedStyle.Render(namePart)
 			} else if name == currentNode {
-				namePart = activeStyle.Render(namePart)
+				namePart = common.InactiveStyle.Render(namePart)
 			}
 
 			// 延迟部分
@@ -267,12 +247,11 @@ func RenderNodesPage(state NodesPageState) string {
 					// -1 或者显式 Error 表示测试失败
 					delayStr = " Error"
 					if i != state.SelectedProxy && name != currentNode {
-						delayColor := lipgloss.Color("#FF0000") // 红色表示错误
-						delayStr = lipgloss.NewStyle().Foreground(delayColor).Render(delayStr)
+						delayStr = common.ErrorStyle.Render(delayStr)
 					} else if i == state.SelectedProxy {
-						delayStr = selectedStyle.Render(delayStr)
+						delayStr = common.SelectedStyle.Render(delayStr)
 					} else if name == currentNode {
-						delayStr = activeStyle.Render(delayStr)
+						delayStr = common.InactiveStyle.Render(delayStr)
 					}
 				} else if lastDelay >= 0 {
 					delayStr = fmt.Sprintf("%4dms", lastDelay)
@@ -281,42 +260,38 @@ func RenderNodesPage(state NodesPageState) string {
 						delayColor := utils.GetDelayColor(lastDelay)
 						delayStr = lipgloss.NewStyle().Foreground(delayColor).Render(delayStr)
 					} else if i == state.SelectedProxy {
-						delayStr = selectedStyle.Render(delayStr)
+						delayStr = common.SelectedStyle.Render(delayStr)
 					} else if name == currentNode {
-						delayStr = activeStyle.Render(delayStr)
+						delayStr = common.InactiveStyle.Render(delayStr)
 					}
 				}
 			}
 
 			// 状态部分
-			status := "  "
+			status := common.SymbolSelectInactive
 			if name == currentNode {
-				status = "✓ "
+				status = common.SymbolCheck
 			}
 			if i == state.SelectedProxy {
-				status = selectedStyle.Render(status)
+				status = common.SelectedStyle.Render(status)
 			} else if name == currentNode {
-				status = activeStyle.Render(status)
+				status = common.InactiveStyle.Render(status)
 			}
 
 			line := prefix + namePart + " │ " + delayStr + " │ " + status
 			// 追加滚动条
 			bar := renderScrollbar(proxyMaxLines, len(state.CurrentProxies), proxyScrollTop, i-proxyScrollTop)
-			lines = append(lines, line+" "+dimStyle.Render(bar))
+			lines = append(lines, line+" "+common.DimStyle.Render(bar))
 		}
 		proxyList += strings.Join(lines, "\n")
 	}
 
-	helpText := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888")).
-		Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
+	helpText := common.MutedStyle.Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
 
 	var failureInfo string
 	if len(state.TestFailures) > 0 {
-		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF0000"))
-		hintStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888"))
+		errorStyle := common.ErrorStyle
+		hintStyle := common.MutedStyle
 
 		if state.ShowFailureDetail {
 			// 详情模式：显示所有失败节点及错误信息
@@ -335,10 +310,10 @@ func RenderNodesPage(state NodesPageState) string {
 
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
-		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
+		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
 		groupList,
 		"",
-		headerStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
+		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
 		"",
 		failureInfo,

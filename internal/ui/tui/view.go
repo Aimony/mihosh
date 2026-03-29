@@ -3,13 +3,14 @@ package tui
 import (
 	"github.com/aimony/mihosh/internal/ui/styles"
 	"github.com/aimony/mihosh/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // View 渲染视图
 func (m Model) View() string {
 	if m.width == 0 {
-		return "初始化中..."
+		return "正在初始化..."
 	}
 
 	// 帮助弹窗处理
@@ -20,14 +21,14 @@ func (m Model) View() string {
 
 	// ── 布局参数 ──
 	sidebarRenderedWidth := components.SidebarWidth + 1 // 含右边框 │
-	statusBarHeight := 2                                // 分隔线 + 信息行
+	statusBarHeight := common.StatusBarHeight           // 分隔线 + 信息行
 	contentHeight := m.height - statusBarHeight
-	if contentHeight < 5 {
-		contentHeight = 5
+	if contentHeight < common.MinContentHeight {
+		contentHeight = common.MinContentHeight
 	}
 	mainWidth := m.width - sidebarRenderedWidth
-	if mainWidth < 20 {
-		mainWidth = 20
+	if mainWidth < common.MinMainWidth {
+		mainWidth = common.MinMainWidth
 	}
 
 	// ── 侧边栏 ──

@@ -8,6 +8,7 @@ import (
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/aimony/mihosh/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/bubbles/key"
 )
 
@@ -217,9 +218,9 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		testURL:       testURL,
 		timeout:       timeout,
 		currentPage:   components.PageNodes,
-		chartData:     model.NewChartData(60),
+		chartData:     model.NewChartData(common.ChartPoints),
 		wsClient:      wsClient,
-		wsMsgChan:     make(chan interface{}, 100),
+		wsMsgChan:     make(chan interface{}, common.WSMsgChanCap),
 		wsCtx:         wsCtx,
 		wsCancel:      wsCancel,
 		nodesState:    NodesState{},

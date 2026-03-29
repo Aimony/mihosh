@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/domain/model"
-	"github.com/aimony/mihosh/internal/ui/styles"
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/ui/tui/components/connections"
 	"github.com/aimony/mihosh/pkg/utils"
@@ -43,19 +42,10 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	}
 
 	// 样式定义
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(styles.ColorPrimary)
-
-	selectedStyle := lipgloss.NewStyle().
-		Foreground(styles.ColorPrimary).
-		Bold(true)
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFF"))
-
-	dimStyle := lipgloss.NewStyle().
-		Foreground(styles.ColorSecondary)
+	headerStyle := common.BoldStyle.Foreground(common.CSecondary)
+	selectedStyle := common.SelectedStyle
+	normalStyle := lipgloss.NewStyle().Foreground(common.CWhite)
+	dimStyle := common.MutedStyle
 
 	// 根据视图模式选择数据源
 	var connList []model.Connection
@@ -160,10 +150,10 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 			isSelected := i == selectedIdx
 
 			rowStyle := normalStyle
-			prefix := "  "
+			prefix := common.SymbolSelectInactive
 			if isSelected {
 				rowStyle = selectedStyle
-				prefix = "▶ "
+				prefix = common.SymbolSelectActive
 			}
 
 			row := connections.RenderConnectionRow(conn, rowStyle, prefix)
@@ -211,9 +201,8 @@ func RenderConnectionsPage(state ConnectionsPageState) string {
 	if filterLine != "" {
 		content = append(content, filterLine)
 	}
-	content = append(content, "")
 	content = append(content, tableHeader)
-	content = append(content, styles.DividerStyle.Render(strings.Repeat("─", min(state.Width-2, 100))))
+	content = append(content, common.TableBorderStyle.Render(strings.Repeat("─", min(state.Width-2, 100))))
 	content = append(content, strings.Join(rows, "\n"))
 
 	// 统一底部的提示信息，固定到底部

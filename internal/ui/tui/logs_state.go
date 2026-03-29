@@ -5,22 +5,22 @@ import (
 	"time"
 
 	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/ui/tui/pages"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 const (
-	logCap               = 1000
 	filteredLogIndexCap  = 1000  // 过滤日志最多显示数量
 )
 
 // LogsState 日志页面完整状态（使用 Ring Buffer 存储日志）
 type LogsState struct {
 	// Ring Buffer
-	logBuf  [logCap]model.LogEntry
+	logBuf  [common.LogsCap]model.LogEntry
 	logHead int // 写入位置
-	logCount int // 已写入总数（上限 logCap）
+	logCount int // 已写入总数（上限 LogsCap）
 
 	// 过滤日志索引（预分配容量避免动态增长）
 	filteredLogIndices []int
@@ -47,7 +47,7 @@ func (s LogsState) logs() []model.LogEntry {
 	}
 	result := make([]model.LogEntry, s.logCount)
 	for i := 0; i < s.logCount; i++ {
-		idx := (s.logHead - 1 - i + logCap) % logCap
+		idx := (s.logHead - 1 - i + common.LogsCap) % common.LogsCap
 		result[i] = s.logBuf[idx]
 	}
 	return result
@@ -61,8 +61,8 @@ func (s LogsState) AppendLog(logType, payload string) LogsState {
 		Timestamp: time.Now(),
 	}
 	s.logBuf[s.logHead] = entry
-	s.logHead = (s.logHead + 1) % logCap
-	if s.logCount < logCap {
+	s.logHead = (s.logHead + 1) % common.LogsCap
+	if s.logCount < common.LogsCap {
 		s.logCount++
 	}
 	s.updateFilteredLogs()

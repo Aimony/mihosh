@@ -5,21 +5,25 @@ import (
 
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/ui/tui/pages"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const closedConnCap = 1000
+const (
+	ConnViewActive  = 0
+	ConnViewHistory = 1
+)
 
 // ConnsState 连接页面完整状态
 type ConnsState struct {
 	connections        *model.ConnectionsResponse
 	prevConnIDs        map[string]model.Connection
 	// Ring Buffer for closed connections
-	closedConns [closedConnCap]model.Connection
+	closedConns [common.ClosedConnCap]model.Connection
 	closedHead  int // 写入位置（下一条写入的索引）
-	closedCount int // 已写入的总条数（上限 closedConnCap）
+	closedCount int // 已写入的总条数（上限 ClosedConnCap）
 
 	selectedConn       int
 	connScrollTop      int
@@ -52,7 +56,7 @@ func (s ConnsState) ClosedConnections() []model.Connection {
 	result := make([]model.Connection, s.closedCount)
 	// Ring Buffer: 从最新写入位置向前读
 	for i := 0; i < s.closedCount; i++ {
-		idx := (s.closedHead - 1 - i + closedConnCap) % closedConnCap
+		idx := (s.closedHead - 1 - i + common.ClosedConnCap) % common.ClosedConnCap
 		result[i] = s.closedConns[idx]
 	}
 	return result
@@ -61,8 +65,8 @@ func (s ConnsState) ClosedConnections() []model.Connection {
 // appendClosed 向 Ring Buffer 追加一条历史连接
 func (s *ConnsState) appendClosed(conn model.Connection) {
 	s.closedConns[s.closedHead] = conn
-	s.closedHead = (s.closedHead + 1) % closedConnCap
-	if s.closedCount < closedConnCap {
+	s.closedHead = (s.closedHead + 1) % common.ClosedConnCap
+	if s.closedCount < common.ClosedConnCap {
 		s.closedCount++
 	}
 }
@@ -159,6 +163,9 @@ func (s ConnsState) Update(msg tea.KeyMsg, client *api.Client, timeout int) (Con
 
 	case msg.String() == "h":
 		s.connViewMode = (s.connViewMode + 1) % 2
+		if s.connViewMode > ConnViewHistory {
+			s.connViewMode = ConnViewActive
+		}
 		s.selectedConn = 0
 		s.connScrollTop = 0
 
@@ -349,7 +356,7 @@ func (s ConnsState) handleConnFilterMode(msg tea.KeyMsg) (ConnsState, tea.Cmd) {
 // filteredConnCount 过滤后的连接数量
 func (s ConnsState) filteredConnCount() int {
 	var conns []model.Connection
-	if s.connViewMode == 0 {
+	if s.connViewMode == ConnViewActive {
 		if s.connections == nil {
 			return 0
 		}
@@ -373,7 +380,7 @@ func (s ConnsState) filteredConnCount() int {
 // selectedConnection 获取当前选中的连接
 func (s ConnsState) selectedConnection() *model.Connection {
 	var conns []model.Connection
-	if s.connViewMode == 0 {
+	if s.connViewMode == ConnViewActive {
 		if s.connections == nil || len(s.connections.Connections) == 0 {
 			return nil
 		}

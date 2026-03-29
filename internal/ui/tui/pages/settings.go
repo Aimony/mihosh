@@ -10,6 +10,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	settingsLabelWidth  = 12
+	settingsMinRowWidth = 40
+)
+
 var SettingKeys = []string{"api-address", "secret", "test-url", "timeout", "proxy-address"}
 var SettingLabels = []string{"API 地址", "密钥", "测速URL", "超时(ms)", "代理地址"}
 
@@ -46,9 +51,7 @@ func GetSettingValue(cfg *config.Config, index int) string {
 // RenderSettingsPage 渲染设置页面
 func RenderSettingsPage(state SettingsPageState, width, height int) string {
 	// 定义基础样式
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFD700")).
+	headerStyle := common.PageHeaderStyle.
 		MarginBottom(1)
 
 	// 容器统一样式，整体偏移
@@ -58,33 +61,33 @@ func RenderSettingsPage(state SettingsPageState, width, height int) string {
 
 	// 标签样式：固定宽度、左侧无填充、文字靠右对齐
 	labelStyle := lipgloss.NewStyle().
-		Width(12).
+		Width(settingsLabelWidth).
 		Align(lipgloss.Right).
-		Foreground(lipgloss.Color("#888888")).
+		Foreground(common.CMuted).
 		PaddingRight(2)
 
 	// 选中状态下的标签
 	selectedLabelStyle := labelStyle.Copy().
-		Foreground(lipgloss.Color("#00FF00")).
+		Foreground(common.CActive).
 		Bold(true)
 
 	// 普通行的值样式
 	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
+		Foreground(common.CWhite)
 
 	// 选中项的行样式：整行背景色
 	selectedRowStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#333333"))
+		Background(common.CHighlight)
 
 	// 编辑模式的值样式
 	editBoxStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFF00")).
-		Background(lipgloss.Color("#555555")).
+		Foreground(common.CWarning).
+		Background(common.CDim).
 		Padding(0, 1)
 
 	// 模拟文本输入光标（反色块）
 	cursorStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#FFFFFF")).
+		Background(common.CWhite).
 		Foreground(lipgloss.Color("#000000"))
 
 	// 配置项列表
@@ -138,8 +141,8 @@ func RenderSettingsPage(state SettingsPageState, width, height int) string {
 		
 		// 定义单行块的样式，使选中框能拉伸一定宽度
 		rowWidth := width - 6
-		if rowWidth < 40 {
-			rowWidth = 40
+		if rowWidth < settingsMinRowWidth {
+			rowWidth = settingsMinRowWidth
 		}
 		
 		rowStyle := lipgloss.NewStyle().Width(rowWidth).PaddingLeft(1)
@@ -153,13 +156,9 @@ func RenderSettingsPage(state SettingsPageState, width, height int) string {
 	// 操作提示
 	var helpText string
 	if state.EditMode {
-		helpText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888")).
-			Render("[Enter]保存 [Esc]取消")
+		helpText = common.MutedStyle.Render("[Enter]保存 [Esc]取消")
 	} else {
-		helpText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888")).
-			Render("[↑/↓]选择 [Enter]编辑")
+		helpText = common.MutedStyle.Render("[↑/↓]选择 [Enter]编辑")
 	}
 
 	mainContent := lipgloss.JoinVertical(

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/aimony/mihosh/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -55,10 +56,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		switch msg.Type {
 		case tea.MouseLeft:
-			statusBarHeight := 2
+			statusBarHeight := common.StatusBarHeight
 			contentHeight := m.height - statusBarHeight
-			if contentHeight < 5 {
-				contentHeight = 5
+			if contentHeight < common.MinContentHeight {
+				contentHeight = common.MinContentHeight
 			}
 			if msg.X >= 0 && msg.X < components.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
 				clickedPage := components.GetClickedPage(msg.X, msg.Y)

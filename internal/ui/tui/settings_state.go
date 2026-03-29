@@ -8,6 +8,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const (
+	asciiMinPrintable = 32
+	asciiMaxPrintable = 127
+)
+
 // SettingsState 设置页面完整状态
 type SettingsState struct {
 	selectedSetting int
@@ -115,7 +120,7 @@ func (s SettingsState) handleEditMode(msg tea.KeyMsg, cfg *config.Config, config
 
 	default:
 		input := msg.String()
-		if len(input) > 0 && (len(input) > 1 || (input[0] >= 32 && input[0] < 127)) {
+		if len(input) > 0 && (len(input) > 1 || (input[0] >= asciiMinPrintable && input[0] < asciiMaxPrintable)) {
 			s.editValue = s.editValue[:s.editCursor] + input + s.editValue[s.editCursor:]
 			s.editCursor += len(input)
 		}

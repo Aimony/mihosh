@@ -49,15 +49,13 @@ func (s *ProxyService) TestGroupDelay(group string) error {
 	return s.client.TestGroupDelay(group, s.testURL, s.timeout)
 }
 
-const testAllConcurrency = 20
-
 // TestAllProxies 批量测试代理延迟（返回每个代理的测试结果）
 func (s *ProxyService) TestAllProxies(proxies []string) map[string]int {
 	results := make(map[string]int)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	sem := make(chan struct{}, testAllConcurrency)
+	sem := make(chan struct{}, model.TestConcurrency)
 
 	for _, p := range proxies {
 		wg.Add(1)
@@ -127,7 +125,7 @@ func (s *ProxyService) GetIPInfo(proxyAddr string) (*model.IPInfo, error) {
 
 	// 使用 ip-api.com 获取详细信息
 	// fields=61439 包含：status, message, country, countryCode, region, regionName, city, zip, lat, lon, timezone, isp, org, as, query
-	resp, err := httpClient.Get("http://ip-api.com/json?fields=61439")
+	resp, err := httpClient.Get(model.IPApiURL)
 	if err != nil {
 		return nil, err
 	}

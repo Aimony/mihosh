@@ -10,16 +10,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	logsFixedLines     = 8
+	logsMinHeight      = 5
+	logsDefaultPadding = 20
+	logsLevelWidth     = 8
+)
+
 // 日志级别列表
 var logLevels = []string{"debug", "info", "warning", "error", "silent"}
 
 // 日志级别颜色
 var logLevelColors = map[string]lipgloss.Color{
-	"debug":   lipgloss.Color("#888888"), // 灰色
-	"info":    lipgloss.Color("#00BFFF"), // 蓝色
-	"warning": lipgloss.Color("#FFD700"), // 黄色
-	"error":   lipgloss.Color("#FF4444"), // 红色
-	"silent":  lipgloss.Color("#9B59B6"), // 紫色
+	"debug":   common.CMuted,
+	"info":    common.CSecondary,
+	"warning": common.CWarning,
+	"error":   common.CDanger,
+	"silent":  common.CPurple,
 }
 
 // LogsPageState 日志页面状态
@@ -59,15 +66,14 @@ func RenderLogsPage(state LogsPageState) string {
 	}
 
 	// 渲染统计信息
-	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	stats := fmt.Sprintf("共 %d 条日志 (级别: %s)", len(filteredLogs), logLevels[state.LogLevel])
-	sections = append(sections, statsStyle.Render(stats))
+	sections = append(sections, common.MutedStyle.Render(stats))
 	sections = append(sections, "")
 
 	// 计算可显示的日志行数 (级别栏 + 搜索框 + 统计 + 间隔)
-	availableHeight := state.Height - 8
-	if availableHeight < 5 {
-		availableHeight = 5
+	availableHeight := state.Height - logsFixedLines
+	if availableHeight < logsMinHeight {
+		availableHeight = logsMinHeight
 	}
 
 	// 渲染日志列表
@@ -89,12 +95,12 @@ func renderLevelBar(selectedLevel int) string {
 
 	activeStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#333333")).
+		Foreground(common.CWhite).
+		Background(common.CHighlight).
 		Padding(0, 1)
 
 	inactiveStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
+		Foreground(common.CMuted).
 		Padding(0, 1)
 
 	for i, level := range logLevels {
@@ -113,20 +119,15 @@ func renderLevelBar(selectedLevel int) string {
 
 // renderLogSearchBox 渲染搜索框
 func renderLogSearchBox(filterText string, filterMode bool) string {
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-	inputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
-
 	if filterMode {
-		inputStyle = inputStyle.Background(lipgloss.Color("#333333"))
+		inputStyle := lipgloss.NewStyle().Foreground(common.CWhite).Background(common.CHighlight)
+		label := common.MutedStyle.Render("搜索: ")
+		input := inputStyle.Render(filterText + "█")
+		return label + input
 	}
 
-	label := labelStyle.Render("搜索: ")
-	input := inputStyle.Render(filterText)
-
-	if filterMode {
-		input += inputStyle.Render("█")
-	}
-
+	label := common.MutedStyle.Render("搜索: ")
+	input := lipgloss.NewStyle().Foreground(common.CWhite).Render(filterText)
 	return label + input
 }
 
@@ -145,8 +146,7 @@ func getLevelIndex(level string) int {
 // renderLogList 渲染日志列表
 func renderLogList(logs []model.LogEntry, selectedIdx, scrollTop, maxLines, width, hOffset int) string {
 	if len(logs) == 0 {
-		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-		return emptyStyle.Render("暂无日志")
+		return common.MutedStyle.Render("暂无日志")
 	}
 
 	var lines []string
@@ -179,20 +179,20 @@ func renderLogEntry(log model.LogEntry, selected bool, maxWidth int, hOffset int
 	// 获取日志级别颜色
 	color := logLevelColors[log.Type]
 	if color == "" {
-		color = lipgloss.Color("#CCCCCC")
+		color = common.CMuted
 	}
 
 	// 级别标签
 	levelStyle := lipgloss.NewStyle().
 		Foreground(color).
-		Width(8)
+		Width(logsLevelWidth)
 
 	// 时间
-	timeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
 	timeStr := log.Timestamp.Format("15:04:05")
+	timePart := common.DimStyle.Render(timeStr)
 
 	// 内容
-	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC"))
+	contentStyle := lipgloss.NewStyle().Foreground(common.CMuted)
 
 	// 对日志内容进行 URL 解码
 	content := log.Payload
@@ -205,14 +205,14 @@ func renderLogEntry(log model.LogEntry, selected bool, maxWidth int, hOffset int
 		content = ""
 	}
 	// 截取显示宽度
-	displayWidth := maxWidth - 20
+	displayWidth := maxWidth - logsDefaultPadding
 	if displayWidth > 0 && len(content) > displayWidth {
 		content = content[:displayWidth]
 	}
 
 	// 构建行
 	line := fmt.Sprintf("%s %s %s",
-		timeStyle.Render(timeStr),
+		timePart,
 		levelStyle.Render(strings.ToUpper(log.Type)),
 		contentStyle.Render(content),
 	)
@@ -220,10 +220,10 @@ func renderLogEntry(log model.LogEntry, selected bool, maxWidth int, hOffset int
 	// 选中样式
 	if selected {
 		line = lipgloss.NewStyle().
-			Background(lipgloss.Color("#333333")).
-			Render("> " + line)
+			Background(common.CHighlight).
+			Render(common.SymbolSelectActive + line)
 	} else {
-		line = "  " + line
+		line = common.SymbolSelectInactive + line
 	}
 
 	return line

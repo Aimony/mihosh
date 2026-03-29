@@ -9,29 +9,35 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	rulesFixedLines  = 6
+	rulesMinHeight   = 5
+	rulesScrollWidth = 2
+)
+
 // 规则类型颜色
 var ruleTypeColors = map[string]lipgloss.Color{
 	// 标准格式
-	"DOMAIN":         lipgloss.Color("#00BFFF"), // 蓝色
-	"DOMAIN-SUFFIX":  lipgloss.Color("#00BFFF"), // 蓝色
-	"DOMAIN-KEYWORD": lipgloss.Color("#00CED1"), // 青色
-	"IP-CIDR":        lipgloss.Color("#9B59B6"), // 紫色
-	"IP-CIDR6":       lipgloss.Color("#9B59B6"), // 紫色
-	"GEOIP":          lipgloss.Color("#E74C3C"), // 红色
-	"GEOSITE":        lipgloss.Color("#E67E22"), // 橙色
-	"RULE-SET":       lipgloss.Color("#2ECC71"), // 绿色
-	"MATCH":          lipgloss.Color("#FFD700"), // 黄色
-	"DIRECT":         lipgloss.Color("#95A5A6"), // 灰色
+	"DOMAIN":         common.CSecondary,
+	"DOMAIN-SUFFIX":  common.CSecondary,
+	"DOMAIN-KEYWORD": common.CInfo,
+	"IP-CIDR":        common.CPurple,
+	"IP-CIDR6":       common.CPurple,
+	"GEOIP":          common.CDanger,
+	"GEOSITE":        common.COrange,
+	"RULE-SET":       common.CSuccess,
+	"MATCH":          common.CWarning,
+	"DIRECT":         common.CGray,
 	// Clash Meta 驼峰格式
-	"Domain":        lipgloss.Color("#00BFFF"), // 蓝色
-	"DomainSuffix":  lipgloss.Color("#00BFFF"), // 蓝色
-	"DomainKeyword": lipgloss.Color("#00CED1"), // 青色
-	"IPCIDR":        lipgloss.Color("#9B59B6"), // 紫色
-	"IPCIDR6":       lipgloss.Color("#9B59B6"), // 紫色
-	"GeoIP":         lipgloss.Color("#E74C3C"), // 红色
-	"GeoSite":       lipgloss.Color("#E67E22"), // 橙色
-	"RuleSet":       lipgloss.Color("#2ECC71"), // 绿色
-	"Match":         lipgloss.Color("#FFD700"), // 黄色
+	"Domain":        common.CSecondary,
+	"DomainSuffix":  common.CSecondary,
+	"DomainKeyword": common.CInfo,
+	"IPCIDR":        common.CPurple,
+	"IPCIDR6":       common.CPurple,
+	"GeoIP":         common.CDanger,
+	"GeoSite":       common.COrange,
+	"RuleSet":       common.CSuccess,
+	"Match":         common.CWarning,
 }
 
 // filteredRule 带原始索引的规则
@@ -70,18 +76,17 @@ func RenderRulesPage(state RulesPageState) string {
 	}
 
 	// 渲染统计信息
-	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	stats := fmt.Sprintf("共 %d 条规则", len(filteredRules))
 	if state.FilterText != "" {
 		stats += fmt.Sprintf(" (过滤自 %d 条)", len(state.Rules))
 	}
-	sections = append(sections, statsStyle.Render(stats))
+	sections = append(sections, common.MutedStyle.Render(stats))
 	sections = append(sections, "")
 
 	// 计算可显示的规则行数 (搜索框 + 统计 + 间隔)
-	availableHeight := state.Height - 6
-	if availableHeight < 5 {
-		availableHeight = 5
+	availableHeight := state.Height - rulesFixedLines
+	if availableHeight < rulesMinHeight {
+		availableHeight = rulesMinHeight
 	}
 
 	// 渲染规则列表
@@ -99,21 +104,20 @@ func RenderRulesPage(state RulesPageState) string {
 
 // renderRuleSearchBox 渲染搜索框
 func renderRuleSearchBox(filterText string, filterMode bool) string {
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	inputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
 
 	if filterMode {
-		inputStyle = inputStyle.Background(lipgloss.Color("#333333"))
+		inputStyle = inputStyle.Background(common.CHighlight)
 	}
 
-	label := labelStyle.Render("搜索: ")
+	label := common.MutedStyle.Render("搜索: ")
 	input := inputStyle.Render(filterText)
 
 	if filterMode {
 		input += inputStyle.Render("█")
 	}
 
-	hint := labelStyle.Render(" (多个关键词用空格分隔)")
+	hint := common.MutedStyle.Render(" (多个关键词用空格分隔)")
 	return label + input + hint
 }
 
@@ -122,8 +126,7 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 // renderRuleList 渲染规则列表（含整体垂直滚动条）
 func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int) string {
 	if len(rules) == 0 {
-		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-		return emptyStyle.Render("暂无规则")
+		return common.MutedStyle.Render("暂无规则")
 	}
 
 	// 调整滚动位置确保选中项可见
@@ -139,8 +142,8 @@ func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, widt
 		endIdx = len(rules)
 	}
 
-	// 渲染规则行（预留滚动条宽度 2）
-	listWidth := width - 2
+	// 渲染规则行（预留滚动条宽度）
+	listWidth := width - rulesScrollWidth
 	var lines []string
 	for i := scrollTop; i < endIdx; i++ {
 		fr := rules[i]
@@ -152,18 +155,15 @@ func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, widt
 	// 构建整体垂直滚动条
 	scrollbarStr := buildScrollbar(maxLines, len(rules), scrollTop)
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	thumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
-
 	// 计算滚动块的起止行
 	thumbStart, thumbEnd := calcThumbRange(maxLines, len(rules), scrollTop)
 
 	var barLines []string
 	for i, ch := range strings.Split(scrollbarStr, "\n") {
 		if i >= thumbStart && i < thumbEnd {
-			barLines = append(barLines, thumbStyle.Render(ch))
+			barLines = append(barLines, common.MutedStyle.Foreground(lipgloss.Color("#AAAAAA")).Render(ch))
 		} else {
-			barLines = append(barLines, dimStyle.Render(ch))
+			barLines = append(barLines, common.DimStyle.Render(ch))
 		}
 	}
 	barStr := strings.Join(barLines, "\n")
@@ -180,13 +180,13 @@ func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, widt
 func buildScrollbar(viewHeight, total, scrollTop int) string {
 	lines := make([]string, viewHeight)
 	for i := range lines {
-		lines[i] = "│"
+		lines[i] = common.SymbolScrollbarTrack
 	}
 	// 用实心块覆盖滑块区域
 	start, end := calcThumbRange(viewHeight, total, scrollTop)
 	for i := start; i < end; i++ {
 		if i < viewHeight {
-			lines[i] = "┃"
+			lines[i] = common.SymbolScrollbarThumb
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -222,7 +222,7 @@ func renderRuleEntry(rule model.Rule, index int, selected bool, width int) strin
 	}
 
 	// 序号
-	indexStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#2ECC71")).Width(6)
+	indexStyle := lipgloss.NewStyle().Foreground(common.CSuccess).Width(6)
 	indexStr := indexStyle.Render(fmt.Sprintf("%d.", index+1))
 
 	// 类型标签
@@ -230,7 +230,7 @@ func renderRuleEntry(rule model.Rule, index int, selected bool, width int) strin
 	typeStr := typeStyle.Render(rule.Type)
 
 	// Payload
-	payloadStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00BFFF"))
+	payloadStyle := lipgloss.NewStyle().Foreground(common.CSecondary)
 	payloadWidth := width - 50
 	if payloadWidth < 20 {
 		payloadWidth = 20
@@ -251,10 +251,10 @@ func renderRuleEntry(rule model.Rule, index int, selected bool, width int) strin
 	// 选中样式
 	if selected {
 		line = lipgloss.NewStyle().
-			Background(lipgloss.Color("#333333")).
-			Render("> " + line)
+			Background(common.CHighlight).
+			Render(common.SymbolSelectActive + line)
 	} else {
-		line = "  " + line
+		line = common.SymbolSelectInactive + line
 	}
 
 	return line
