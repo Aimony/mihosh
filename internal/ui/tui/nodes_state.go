@@ -47,6 +47,10 @@ type NodesState struct {
 	// 排序
 	proxySortOrder      ProxySortOrder
 	originalProxies     []string // 记录原始顺序，便于恢复
+	// 搜索
+	nodeFilter          string
+	nodeFilterMode      bool
+	filteredProxyIndices []int // 过滤结果的索引缓存（对应 currentProxies 的下标）
 }
 
 // appendTestFailure 向 Ring Buffer 追加一条测速失败记录
@@ -104,6 +108,18 @@ func (s *NodesState) clearTestFailures() {
 	s.failCount = 0
 }
 
+// displayProxies 返回当前应显示的节点列表（搜索时返回过滤结果，否则返回全部）
+func (s NodesState) displayProxies() []string {
+	if s.nodeFilter == "" {
+		return s.currentProxies
+	}
+	result := make([]string, len(s.filteredProxyIndices))
+	for i, idx := range s.filteredProxyIndices {
+		result[i] = s.currentProxies[idx]
+	}
+	return result
+}
+
 // ToPageState 转换为渲染层所需的 NodesPageState
 func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 	return pages.NodesPageState{
@@ -112,7 +128,7 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 		GroupNames:        s.groupNames,
 		SelectedGroup:     s.selectedGroup,
 		SelectedProxy:     s.selectedProxy,
-		CurrentProxies:    s.currentProxies,
+		CurrentProxies:    s.displayProxies(),
 		Testing:           s.testing,
 		TestFailures:      s.sortedTestFailures(),
 		ShowFailureDetail: s.showFailureDetail,
@@ -123,11 +139,18 @@ func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 		Height:            height,
 		GroupScrollTop:    s.groupScrollTop,
 		ProxyScrollTop:    s.proxyScrollTop,
+		FilterText:        s.nodeFilter,
+		FilterMode:        s.nodeFilterMode,
 	}
 }
 
 // Update 处理节点页面按键
 func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service.ProxyService, testURL string, timeout int) (NodesState, tea.Cmd) {
+	// 搜索输入模式：拦截所有按键用于输入
+	if s.nodeFilterMode {
+		return s.handleNodeFilterMode(msg)
+	}
+
 	// 失败详情弹窗打开时，↑/↓ 控制弹窗滚动，f/Esc 关闭弹窗
 	if s.showFailureDetail {
 		switch {
@@ -144,6 +167,8 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 		return s, nil
 	}
 
+	display := s.displayProxies()
+
 	switch {
 	case key.Matches(msg, keys.Up):
 		if s.selectedProxy > 0 {
@@ -154,7 +179,7 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 		}
 
 	case key.Matches(msg, keys.Down):
-		if s.selectedProxy < len(s.currentProxies)-1 {
+		if s.selectedProxy < len(display)-1 {
 			s.selectedProxy++
 		}
 
@@ -179,15 +204,15 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 
 	case key.Matches(msg, keys.Enter):
 		if len(s.groupNames) > 0 && s.selectedGroup < len(s.groupNames) &&
-			len(s.currentProxies) > 0 && s.selectedProxy < len(s.currentProxies) {
+			len(display) > 0 && s.selectedProxy < len(display) {
 			groupName := s.groupNames[s.selectedGroup]
-			proxyName := s.currentProxies[s.selectedProxy]
+			proxyName := display[s.selectedProxy]
 			return s, selectProxy(client, groupName, proxyName)
 		}
 
 	case key.Matches(msg, keys.Test):
-		if len(s.currentProxies) > 0 && s.selectedProxy < len(s.currentProxies) {
-			proxyName := s.currentProxies[s.selectedProxy]
+		if len(display) > 0 && s.selectedProxy < len(display) {
+			proxyName := display[s.selectedProxy]
 			s.testing = true
 			return s, testProxy(client, proxyName, testURL, timeout)
 		}
@@ -209,11 +234,77 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 	case msg.String() == "s":
 		s.proxySortOrder = (s.proxySortOrder + 1) % ProxySortOrder(len(sortOrderLabels))
 		s.applySortOrder()
+		s.updateFilteredProxies()
 		s.selectedProxy = 0
 		s.proxyScrollTop = 0
+
+	case msg.String() == "/":
+		s.nodeFilterMode = true
+
+	case key.Matches(msg, keys.Escape):
+		if s.nodeFilter != "" {
+			s.nodeFilter = ""
+			s.selectedProxy = 0
+			s.proxyScrollTop = 0
+			s.updateFilteredProxies()
+		}
 	}
 
 	return s, nil
+}
+
+// handleNodeFilterMode 搜索输入模式处理
+func (s NodesState) handleNodeFilterMode(msg tea.KeyMsg) (NodesState, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Escape):
+		s.nodeFilterMode = false
+		s.nodeFilter = ""
+		s.selectedProxy = 0
+		s.proxyScrollTop = 0
+		s.updateFilteredProxies()
+	case key.Matches(msg, keys.Enter):
+		s.nodeFilterMode = false
+		s.selectedProxy = 0
+		s.proxyScrollTop = 0
+	case key.Matches(msg, keys.Backspace):
+		if len(s.nodeFilter) > 0 {
+			// 正确截断多字节字符
+			runes := []rune(s.nodeFilter)
+			s.nodeFilter = string(runes[:len(runes)-1])
+			s.updateFilteredProxies()
+			s.selectedProxy = 0
+			s.proxyScrollTop = 0
+		}
+	default:
+		input := msg.String()
+		// 接受可打印的单字符（ASCII）或多字节字符（如中文）
+		runes := []rune(input)
+		if len(runes) == 1 && runes[0] >= 32 {
+			s.nodeFilter += input
+			s.updateFilteredProxies()
+			s.selectedProxy = 0
+			s.proxyScrollTop = 0
+		}
+	}
+	return s, nil
+}
+
+// updateFilteredProxies 重建搜索过滤索引缓存
+func (s *NodesState) updateFilteredProxies() {
+	if s.filteredProxyIndices == nil {
+		s.filteredProxyIndices = make([]int, 0, 64)
+	} else {
+		s.filteredProxyIndices = s.filteredProxyIndices[:0]
+	}
+	if s.nodeFilter == "" {
+		return
+	}
+	filter := strings.ToLower(s.nodeFilter)
+	for i, name := range s.currentProxies {
+		if strings.Contains(strings.ToLower(name), filter) {
+			s.filteredProxyIndices = append(s.filteredProxyIndices, i)
+		}
+	}
 }
 
 // HandleMouseScroll 处理鼠标滚轮（弹窗打开时控制弹窗滚动，否则控制节点列表）
@@ -229,6 +320,7 @@ func (s NodesState) HandleMouseScroll(up bool) NodesState {
 		return s
 	}
 
+	displayCount := len(s.displayProxies())
 	if up {
 		if s.selectedProxy > 0 {
 			s.selectedProxy--
@@ -237,7 +329,7 @@ func (s NodesState) HandleMouseScroll(up bool) NodesState {
 			}
 		}
 	} else {
-		if s.selectedProxy < len(s.currentProxies)-1 {
+		if s.selectedProxy < displayCount-1 {
 			s.selectedProxy++
 		}
 	}
@@ -322,6 +414,7 @@ func (s *NodesState) updateCurrentProxies() {
 			// 应用当前排序
 			s.currentProxies = original
 			s.applySortOrder()
+			s.updateFilteredProxies()
 		}
 	}
 }

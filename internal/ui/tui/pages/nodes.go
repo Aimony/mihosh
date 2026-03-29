@@ -27,14 +27,16 @@ type NodesPageState struct {
 	CurrentProxies    []string
 	Testing           bool
 	TestFailures      []string
-	ShowFailureDetail bool // 是否显示测速失败弹窗
-	FailureScrollTop  int  // 测速失败弹窗滚动偏移
+	ShowFailureDetail bool  // 是否显示测速失败弹窗
+	FailureScrollTop  int   // 测速失败弹窗滚动偏移
 	SortOrderLabels   []string // 排序选项文本
-	CurrentSortOrder  int  // 当前排序模式
+	CurrentSortOrder  int   // 当前排序模式
 	Width             int
-	Height            int // 终端高度
-	GroupScrollTop    int // 策略组列表滚动偏移
-	ProxyScrollTop    int // 节点列表滚动偏移
+	Height            int   // 终端高度
+	GroupScrollTop    int   // 策略组列表滚动偏移
+	ProxyScrollTop    int   // 节点列表滚动偏移
+	FilterText        string // 节点搜索关键词
+	FilterMode        bool   // 是否处于搜索输入模式
 }
 
 // displayWidth 计算字符串的显示宽度（使用 runewidth 库精确计算）
@@ -177,7 +179,11 @@ func RenderNodesPage(state NodesPageState) string {
 	// 节点列表
 	var proxyList string
 	if len(state.CurrentProxies) == 0 {
-		proxyList = "  无可用节点"
+		if state.FilterText != "" {
+			proxyList = "  无搜索结果"
+		} else {
+			proxyList = "  无可用节点"
+		}
 	} else {
 		var currentNode string
 		if len(state.GroupNames) > 0 && state.SelectedGroup < len(state.GroupNames) {
@@ -293,7 +299,16 @@ func RenderNodesPage(state NodesPageState) string {
 	if len(state.SortOrderLabels) > 0 && state.CurrentSortOrder < len(state.SortOrderLabels) {
 		sortLabel = state.SortOrderLabels[state.CurrentSortOrder]
 	}
-	helpText := common.MutedStyle.Render(fmt.Sprintf("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [s]排序:%s [r]刷新", sortLabel))
+
+	// 搜索状态提示行
+	var searchLine string
+	if state.FilterMode {
+		searchLine = common.TableHeaderStyle.Render(fmt.Sprintf("搜索: %s▌", state.FilterText))
+	} else if state.FilterText != "" {
+		searchLine = common.MutedStyle.Render(fmt.Sprintf("搜索: %s  [Esc]清除", state.FilterText))
+	}
+
+	helpText := common.MutedStyle.Render(fmt.Sprintf("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [s]排序:%s [/]搜索 [r]刷新", sortLabel))
 
 	var failureBadge string
 	if len(state.TestFailures) > 0 {
@@ -309,6 +324,7 @@ func RenderNodesPage(state NodesPageState) string {
 		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
 		"",
+		searchLine,
 		failureBadge,
 	)
 
