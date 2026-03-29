@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/domain/model"
@@ -12,6 +14,17 @@ import (
 )
 
 const testFailureCap = 100 // 最多保留最近 100 条测速失败记录
+
+// ProxySortOrder 节点列表排序方式
+type ProxySortOrder int
+
+const (
+	SortOrderOriginal ProxySortOrder = iota // 原始顺序
+	SortOrderAZ                             // A-Z 升序
+	SortOrderZA                             // Z-A 降序
+)
+
+var sortOrderLabels = []string{"原始顺序", "A-Z 升序", "Z-A 降序"}
 
 // NodesState 节点页面完整状态
 type NodesState struct {
@@ -31,6 +44,9 @@ type NodesState struct {
 	failCount    int // 已写入总数（上限 testFailureCap）
 	showFailureDetail   bool
 	failureScrollTop    int
+	// 排序
+	proxySortOrder      ProxySortOrder
+	originalProxies     []string // 记录原始顺序，便于恢复
 }
 
 // appendTestFailure 向 Ring Buffer 追加一条测速失败记录
@@ -64,26 +80,28 @@ func (s *NodesState) clearTestFailures() {
 // ToPageState 转换为渲染层所需的 NodesPageState
 func (s NodesState) ToPageState(width, height int) pages.NodesPageState {
 	return pages.NodesPageState{
-		Groups:             s.groups,
-		Proxies:            s.proxies,
-		GroupNames:         s.groupNames,
-		SelectedGroup:      s.selectedGroup,
-		SelectedProxy:      s.selectedProxy,
-		CurrentProxies:     s.currentProxies,
-		Testing:            s.testing,
-		TestFailures:       s.TestFailures(),
-		ShowFailureDetail:  s.showFailureDetail,
-		FailureScrollTop:   s.failureScrollTop,
-		Width:              width,
-		Height:             height,
-		GroupScrollTop:     s.groupScrollTop,
-		ProxyScrollTop:     s.proxyScrollTop,
+		Groups:            s.groups,
+		Proxies:           s.proxies,
+		GroupNames:        s.groupNames,
+		SelectedGroup:     s.selectedGroup,
+		SelectedProxy:     s.selectedProxy,
+		CurrentProxies:    s.currentProxies,
+		Testing:           s.testing,
+		TestFailures:      s.TestFailures(),
+		ShowFailureDetail: s.showFailureDetail,
+		FailureScrollTop:  s.failureScrollTop,
+		SortOrderLabels:   sortOrderLabels,
+		CurrentSortOrder:  int(s.proxySortOrder),
+		Width:             width,
+		Height:            height,
+		GroupScrollTop:    s.groupScrollTop,
+		ProxyScrollTop:    s.proxyScrollTop,
 	}
 }
 
 // Update 处理节点页面按键
 func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service.ProxyService, testURL string, timeout int) (NodesState, tea.Cmd) {
-	// 弹窗打开时，↑/↓ 控制弹窗滚动，f/Esc 关闭弹窗
+	// 失败详情弹窗打开时，↑/↓ 控制弹窗滚动，f/Esc 关闭弹窗
 	if s.showFailureDetail {
 		switch {
 		case key.Matches(msg, keys.Up):
@@ -160,6 +178,12 @@ func (s NodesState) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service
 			s.showFailureDetail = true
 			s.failureScrollTop = 0
 		}
+
+	case msg.String() == "s":
+		s.proxySortOrder = (s.proxySortOrder + 1) % ProxySortOrder(len(sortOrderLabels))
+		s.applySortOrder()
+		s.selectedProxy = 0
+		s.proxyScrollTop = 0
 	}
 
 	return s, nil
@@ -264,7 +288,40 @@ func (s *NodesState) updateCurrentProxies() {
 	if len(s.groupNames) > 0 && s.selectedGroup < len(s.groupNames) {
 		groupName := s.groupNames[s.selectedGroup]
 		if group, ok := s.groups[groupName]; ok {
-			s.currentProxies = group.All
+			// 保存原始顺序副本
+			original := make([]string, len(group.All))
+			copy(original, group.All)
+			s.originalProxies = original
+			// 应用当前排序
+			s.currentProxies = original
+			s.applySortOrder()
 		}
+	}
+}
+
+// applySortOrder 根据当前排序模式重新排列 currentProxies
+func (s *NodesState) applySortOrder() {
+	switch s.proxySortOrder {
+	case SortOrderOriginal:
+		// 恢复原始顺序
+		if len(s.originalProxies) > 0 {
+			copied := make([]string, len(s.originalProxies))
+			copy(copied, s.originalProxies)
+			s.currentProxies = copied
+		}
+	case SortOrderAZ:
+		copied := make([]string, len(s.originalProxies))
+		copy(copied, s.originalProxies)
+		sort.Slice(copied, func(i, j int) bool {
+			return strings.ToLower(copied[i]) < strings.ToLower(copied[j])
+		})
+		s.currentProxies = copied
+	case SortOrderZA:
+		copied := make([]string, len(s.originalProxies))
+		copy(copied, s.originalProxies)
+		sort.Slice(copied, func(i, j int) bool {
+			return strings.ToLower(copied[i]) > strings.ToLower(copied[j])
+		})
+		s.currentProxies = copied
 	}
 }

@@ -19,20 +19,22 @@ const (
 
 // NodesPageState 节点页面状态（由 Model 传入）
 type NodesPageState struct {
-	Groups             map[string]model.Group
-	Proxies            map[string]model.Proxy
-	GroupNames         []string
-	SelectedGroup      int
-	SelectedProxy      int
-	CurrentProxies     []string
-	Testing            bool
-	TestFailures       []string
-	ShowFailureDetail  bool // 是否显示测速失败弹窗
-	FailureScrollTop   int  // 测速失败弹窗滚动偏移
-	Width              int
-	Height             int // 终端高度
-	GroupScrollTop     int // 策略组列表滚动偏移
-	ProxyScrollTop     int // 节点列表滚动偏移
+	Groups            map[string]model.Group
+	Proxies           map[string]model.Proxy
+	GroupNames        []string
+	SelectedGroup     int
+	SelectedProxy     int
+	CurrentProxies    []string
+	Testing           bool
+	TestFailures      []string
+	ShowFailureDetail bool // 是否显示测速失败弹窗
+	FailureScrollTop  int  // 测速失败弹窗滚动偏移
+	SortOrderLabels   []string // 排序选项文本
+	CurrentSortOrder  int  // 当前排序模式
+	Width             int
+	Height            int // 终端高度
+	GroupScrollTop    int // 策略组列表滚动偏移
+	ProxyScrollTop    int // 节点列表滚动偏移
 }
 
 // displayWidth 计算字符串的显示宽度（使用 runewidth 库精确计算）
@@ -287,7 +289,11 @@ func RenderNodesPage(state NodesPageState) string {
 		proxyList += strings.Join(lines, "\n")
 	}
 
-	helpText := common.MutedStyle.Render("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [r]刷新")
+	sortLabel := ""
+	if len(state.SortOrderLabels) > 0 && state.CurrentSortOrder < len(state.SortOrderLabels) {
+		sortLabel = state.SortOrderLabels[state.CurrentSortOrder]
+	}
+	helpText := common.MutedStyle.Render(fmt.Sprintf("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [s]排序:%s [r]刷新", sortLabel))
 
 	var failureBadge string
 	if len(state.TestFailures) > 0 {
