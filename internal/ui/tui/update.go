@@ -72,6 +72,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentPage == components.PageNodes {
 				return m.handleNodesMouseLeft(msg.X, msg.Y)
 			}
+			if m.currentPage == components.PageConnections {
+				return m.handleConnectionsMouseLeft(msg.X, msg.Y)
+			}
 		case isMouseWheelUp(msg):
 			return m.handleMouseScroll(true, msg.X)
 		case isMouseWheelDown(msg):
@@ -322,13 +325,35 @@ func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNodesMouseLeft(x, y int) (tea.Model, tea.Cmd) {
+	_, pageY, pageWidth, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
+	if !ok {
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.nodesState, cmd = m.nodesState.HandleMouseLeft(pageY, pageWidth, pageHeight, m.client)
+	return m, cmd
+}
+
+func (m Model) handleConnectionsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
+	pageX, pageY, _, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
+	if !ok {
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.connsState, cmd = m.connsState.HandleMouseLeft(pageX, pageY, m.width, pageHeight, m.chartData, m.timeout)
+	return m, cmd
+}
+
+func (m Model) resolveMainPageMouseHit(x, y int) (pageX, pageY, pageWidth, pageHeight int, ok bool) {
 	statusBarHeight := common.StatusBarHeight
 	contentHeight := m.height - statusBarHeight
 	if contentHeight < common.MinContentHeight {
 		contentHeight = common.MinContentHeight
 	}
 	if y < 0 || y >= contentHeight {
-		return m, nil
+		return 0, 0, 0, 0, false
 	}
 
 	sidebarRenderedWidth := components.SidebarWidth + 1
@@ -339,28 +364,30 @@ func (m Model) handleNodesMouseLeft(x, y int) (tea.Model, tea.Cmd) {
 
 	mainX := x - sidebarRenderedWidth
 	if mainX <= 0 || mainX >= mainWidth-1 {
-		return m, nil
+		return 0, 0, 0, 0, false
 	}
 	if y <= 0 || y >= contentHeight-1 {
-		return m, nil
+		return 0, 0, 0, 0, false
 	}
 
 	contentY := y - 1
 	const pageContentOffsetY = 2 // 标题 + 空行
 	if contentY < pageContentOffsetY {
-		return m, nil
+		return 0, 0, 0, 0, false
 	}
 
-	pageY := contentY - pageContentOffsetY
-	pageHeight := m.height - 8
-	pageWidth := mainWidth - 2
+	pageY = contentY - pageContentOffsetY
+	pageHeight = m.height - 8
+	pageWidth = mainWidth - 2
 	if pageWidth < common.MinMainWidth {
 		pageWidth = common.MinMainWidth
 	}
+	pageX = mainX - 1
+	if pageX < 0 || pageX >= pageWidth {
+		return 0, 0, 0, 0, false
+	}
 
-	var cmd tea.Cmd
-	m.nodesState, cmd = m.nodesState.HandleMouseLeft(pageY, pageWidth, pageHeight, m.client)
-	return m, cmd
+	return pageX, pageY, pageWidth, pageHeight, true
 }
 
 func isMouseLeftPress(msg tea.MouseMsg) bool {

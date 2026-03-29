@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
@@ -14,12 +15,14 @@ import (
 const (
 	ConnViewActive  = 0
 	ConnViewHistory = 1
+
+	connsDoubleClickThreshold = 350 * time.Millisecond
 )
 
 // ConnsState 连接页面完整状态
 type ConnsState struct {
-	connections        *model.ConnectionsResponse
-	prevConnIDs        map[string]model.Connection
+	connections *model.ConnectionsResponse
+	prevConnIDs map[string]model.Connection
 	// Ring Buffer for closed connections
 	closedConns [common.ClosedConnCap]model.Connection
 	closedHead  int // 写入位置（下一条写入的索引）
@@ -38,6 +41,10 @@ type ConnsState struct {
 	siteTests        []model.SiteTest
 	selectedSiteTest int
 	proxyAddr        string
+
+	lastMouseTarget pages.ConnectionsMouseTarget
+	lastMouseIndex  int
+	lastMouseAt     time.Time
 }
 
 // NewConnsState 初始化连接状态
@@ -134,14 +141,7 @@ func (s ConnsState) Update(msg tea.KeyMsg, client *api.Client, timeout int) (Con
 		}
 
 	case key.Matches(msg, keys.Enter):
-		conn := s.selectedConnection()
-		if conn != nil {
-			snapshot := *conn
-			s.connDetailSnapshot = &snapshot
-			s.connDetailMode = true
-			s.connIPInfo = nil
-			return s, fetchIPInfo(conn.Metadata.DestinationIP)
-		}
+		return s.openSelectedConnectionDetail()
 
 	case msg.String() == "x":
 		conn := s.selectedConnection()
@@ -170,11 +170,7 @@ func (s ConnsState) Update(msg tea.KeyMsg, client *api.Client, timeout int) (Con
 		s.connScrollTop = 0
 
 	case msg.String() == "s":
-		if len(s.siteTests) > 0 && s.selectedSiteTest < len(s.siteTests) {
-			site := s.siteTests[s.selectedSiteTest]
-			s.siteTests[s.selectedSiteTest].Testing = true
-			return s, testSiteDelay(s.proxyAddr, site.Name, site.URL, timeout)
-		}
+		return s.triggerSiteTestByIndex(s.selectedSiteTest, timeout)
 
 	case msg.String() == "S":
 		if len(s.siteTests) > 0 {
@@ -200,6 +196,50 @@ func (s ConnsState) Update(msg tea.KeyMsg, client *api.Client, timeout int) (Con
 			s.selectedConn = 0
 			s.connScrollTop = 0
 		}
+	}
+
+	return s, nil
+}
+
+// HandleMouseLeft 处理 connections 页面左键单击/双击
+func (s ConnsState) HandleMouseLeft(
+	pageX int,
+	pageY int,
+	pageWidth int,
+	pageHeight int,
+	chartData *model.ChartData,
+	timeout int,
+) (ConnsState, tea.Cmd) {
+	if s.connDetailMode || s.connFilterMode {
+		return s, nil
+	}
+
+	hit := pages.ResolveConnectionsMouseHit(s.ToPageState(chartData, pageWidth, pageHeight), pageX, pageY)
+	now := time.Now()
+
+	switch hit.Target {
+	case pages.ConnectionsMouseTargetConnection:
+		if hit.Index < 0 {
+			return s, nil
+		}
+		s.selectedConn = hit.Index
+		if s.selectedConn < s.connScrollTop {
+			s.connScrollTop = s.selectedConn
+		}
+		if !s.isMouseDoubleClick(pages.ConnectionsMouseTargetConnection, hit.Index, now) {
+			return s, nil
+		}
+		return s.openSelectedConnectionDetail()
+
+	case pages.ConnectionsMouseTargetSiteTest:
+		if hit.Index < 0 || hit.Index >= len(s.siteTests) {
+			return s, nil
+		}
+		s.selectedSiteTest = hit.Index
+		if !s.isMouseDoubleClick(pages.ConnectionsMouseTargetSiteTest, hit.Index, now) {
+			return s, nil
+		}
+		return s.triggerSiteTestByIndex(hit.Index, timeout)
 	}
 
 	return s, nil
@@ -231,6 +271,19 @@ func (s ConnsState) HandleMouseScroll(up bool) ConnsState {
 		}
 	}
 	return s
+}
+
+func (s *ConnsState) isMouseDoubleClick(target pages.ConnectionsMouseTarget, idx int, now time.Time) bool {
+	isDoubleClick := target == s.lastMouseTarget &&
+		idx == s.lastMouseIndex &&
+		!s.lastMouseAt.IsZero() &&
+		now.Sub(s.lastMouseAt) <= connsDoubleClickThreshold
+
+	s.lastMouseTarget = target
+	s.lastMouseIndex = idx
+	s.lastMouseAt = now
+
+	return isDoubleClick
 }
 
 // ApplyWSConnections 处理 WebSocket 连接推送（含历史记录检测）
@@ -329,6 +382,28 @@ func (s ConnsState) ResetPrevConnIDs() ConnsState {
 func (s ConnsState) UpdateProxyAddr(addr string) ConnsState {
 	s.proxyAddr = addr
 	return s
+}
+
+func (s ConnsState) openSelectedConnectionDetail() (ConnsState, tea.Cmd) {
+	conn := s.selectedConnection()
+	if conn == nil {
+		return s, nil
+	}
+
+	snapshot := *conn
+	s.connDetailSnapshot = &snapshot
+	s.connDetailMode = true
+	s.connIPInfo = nil
+	return s, fetchIPInfo(conn.Metadata.DestinationIP)
+}
+
+func (s ConnsState) triggerSiteTestByIndex(idx int, timeout int) (ConnsState, tea.Cmd) {
+	if idx < 0 || idx >= len(s.siteTests) {
+		return s, nil
+	}
+	site := s.siteTests[idx]
+	s.siteTests[idx].Testing = true
+	return s, testSiteDelay(s.proxyAddr, site.Name, site.URL, timeout)
 }
 
 // handleConnFilterMode 连接过滤输入模式
