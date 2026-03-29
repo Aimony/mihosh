@@ -70,17 +70,11 @@ type LogData struct {
 
 // WSClient WebSocket客户端
 type WSClient struct {
-	baseURL         string
-	secret          string
-	memoryConn      *websocket.Conn
-	trafficConn     *websocket.Conn
-	connectionsConn *websocket.Conn
-	logsConn        *websocket.Conn
+	baseURL string
+	secret  string
 
-	memoryMu      sync.Mutex
-	trafficMu     sync.Mutex
-	connectionsMu sync.Mutex
-	logsMu        sync.Mutex
+	connsMu sync.Mutex
+	conns   map[string]*websocket.Conn // key: 端点名称
 
 	memoryHandler      func(MemoryData)
 	trafficHandler     func(TrafficData)
@@ -98,6 +92,7 @@ func NewWSClient(baseURL, secret string) *WSClient {
 	return &WSClient{
 		baseURL:  baseURL,
 		secret:   secret,
+		conns:    make(map[string]*websocket.Conn),
 		stopChan: make(chan struct{}),
 	}
 }
@@ -129,17 +124,14 @@ func (c *WSClient) SetLogLevel(level string) {
 
 // buildWSURL 构建WebSocket URL
 func (c *WSClient) buildWSURL(endpoint string) string {
-	// 将http/https转换为ws/wss
 	wsURL := strings.Replace(c.baseURL, "https://", "wss://", 1)
 	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
 
-	// 构建完整URL
 	u, err := url.Parse(wsURL + "/" + endpoint)
 	if err != nil {
 		return ""
 	}
 
-	// 添加token参数
 	if c.secret != "" {
 		q := u.Query()
 		q.Set("token", c.secret)
@@ -147,6 +139,17 @@ func (c *WSClient) buildWSURL(endpoint string) string {
 	}
 
 	return u.String()
+}
+
+// setConn 线程安全地保存当前连接
+func (c *WSClient) setConn(key string, conn *websocket.Conn) {
+	c.connsMu.Lock()
+	if conn == nil {
+		delete(c.conns, key)
+	} else {
+		c.conns[key] = conn
+	}
+	c.connsMu.Unlock()
 }
 
 // Start 启动WebSocket连接
@@ -160,19 +163,36 @@ func (c *WSClient) Start() error {
 	c.stopChan = make(chan struct{})
 	c.runningMu.Unlock()
 
-	// 启动memory连接
-	go c.connectMemory()
-	// 启动traffic连接
-	go c.connectTraffic()
-	// 启动connections连接
-	go c.connectConnections()
-	// 启动logs连接
-	go c.connectLogs()
+	level := c.logLevel
+	if level == "" {
+		level = "debug"
+	}
+
+	go connectStream(c, "memory", func(d MemoryData) {
+		if c.memoryHandler != nil {
+			c.memoryHandler(d)
+		}
+	})
+	go connectStream(c, "traffic", func(d TrafficData) {
+		if c.trafficHandler != nil {
+			c.trafficHandler(d)
+		}
+	})
+	go connectStream(c, "connections", func(d ConnectionsData) {
+		if c.connectionsHandler != nil {
+			c.connectionsHandler(d)
+		}
+	})
+	go connectStream(c, "logs?level="+level, func(d LogData) {
+		if c.logsHandler != nil {
+			c.logsHandler(d)
+		}
+	})
 
 	return nil
 }
 
-// Stop 停止WebSocket连接
+// Stop 停止所有WebSocket连接
 func (c *WSClient) Stop() {
 	c.runningMu.Lock()
 	if !c.isRunning {
@@ -183,33 +203,12 @@ func (c *WSClient) Stop() {
 	close(c.stopChan)
 	c.runningMu.Unlock()
 
-	c.memoryMu.Lock()
-	if c.memoryConn != nil {
-		c.memoryConn.Close()
-		c.memoryConn = nil
+	c.connsMu.Lock()
+	for key, conn := range c.conns {
+		conn.Close()
+		delete(c.conns, key)
 	}
-	c.memoryMu.Unlock()
-
-	c.trafficMu.Lock()
-	if c.trafficConn != nil {
-		c.trafficConn.Close()
-		c.trafficConn = nil
-	}
-	c.trafficMu.Unlock()
-
-	c.connectionsMu.Lock()
-	if c.connectionsConn != nil {
-		c.connectionsConn.Close()
-		c.connectionsConn = nil
-	}
-	c.connectionsMu.Unlock()
-
-	c.logsMu.Lock()
-	if c.logsConn != nil {
-		c.logsConn.Close()
-		c.logsConn = nil
-	}
-	c.logsMu.Unlock()
+	c.connsMu.Unlock()
 }
 
 // IsRunning 检查是否正在运行
@@ -219,9 +218,11 @@ func (c *WSClient) IsRunning() bool {
 	return c.isRunning
 }
 
-// connectMemory 连接memory WebSocket
-func (c *WSClient) connectMemory() {
-	wsURL := c.buildWSURL("memory")
+// connectStream 通用WebSocket流连接，处理重连生命周期。
+// endpoint 同时作为 conns map 的 key，因此带查询参数的端点（如 "logs?level=debug"）
+// 与其他端点不会冲突。
+func connectStream[T any](c *WSClient, endpoint string, handler func(T)) {
+	wsURL := c.buildWSURL(endpoint)
 	if wsURL == "" {
 		return
 	}
@@ -235,259 +236,45 @@ func (c *WSClient) connectMemory() {
 
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
-			// 连接失败，等待后重试
-			time.Sleep(2 * time.Second)
-			continue
+			select {
+			case <-c.stopChan:
+				return
+			case <-time.After(2 * time.Second):
+				continue
+			}
 		}
 
-		c.memoryMu.Lock()
-		c.memoryConn = conn
-		c.memoryMu.Unlock()
+		c.setConn(endpoint, conn)
 
-		// 读取消息
-		c.readMemoryMessages(conn)
+		// 读取消息，直到连接断开或收到停止信号
+		for {
+			select {
+			case <-c.stopChan:
+				conn.Close()
+				c.setConn(endpoint, nil)
+				return
+			default:
+			}
 
-		// 连接断开，等待后重连
-		c.memoryMu.Lock()
-		c.memoryConn = nil
-		c.memoryMu.Unlock()
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
 
+			var data T
+			if err := json.Unmarshal(message, &data); err != nil {
+				continue
+			}
+			handler(data)
+		}
+
+		c.setConn(endpoint, nil)
+
+		// 断线后等待重连，期间响应停止信号
 		select {
 		case <-c.stopChan:
 			return
 		case <-time.After(1 * time.Second):
-			// 重连
-		}
-	}
-}
-
-// connectTraffic 连接traffic WebSocket
-func (c *WSClient) connectTraffic() {
-	wsURL := c.buildWSURL("traffic")
-	if wsURL == "" {
-		return
-	}
-
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-		if err != nil {
-			// 连接失败，等待后重试
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		c.trafficMu.Lock()
-		c.trafficConn = conn
-		c.trafficMu.Unlock()
-
-		// 读取消息
-		c.readTrafficMessages(conn)
-
-		// 连接断开，等待后重连
-		c.trafficMu.Lock()
-		c.trafficConn = nil
-		c.trafficMu.Unlock()
-
-		select {
-		case <-c.stopChan:
-			return
-		case <-time.After(1 * time.Second):
-			// 重连
-		}
-	}
-}
-
-// readMemoryMessages 读取memory消息
-func (c *WSClient) readMemoryMessages(conn *websocket.Conn) {
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		var data MemoryData
-		if err := json.Unmarshal(message, &data); err != nil {
-			continue
-		}
-
-		if c.memoryHandler != nil {
-			c.memoryHandler(data)
-		}
-	}
-}
-
-// readTrafficMessages 读取traffic消息
-func (c *WSClient) readTrafficMessages(conn *websocket.Conn) {
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		var data TrafficData
-		if err := json.Unmarshal(message, &data); err != nil {
-			continue
-		}
-
-		if c.trafficHandler != nil {
-			c.trafficHandler(data)
-		}
-	}
-}
-
-// connectConnections 连接connections WebSocket
-func (c *WSClient) connectConnections() {
-	wsURL := c.buildWSURL("connections")
-	if wsURL == "" {
-		return
-	}
-
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-		if err != nil {
-			// 连接失败，等待后重试
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		c.connectionsMu.Lock()
-		c.connectionsConn = conn
-		c.connectionsMu.Unlock()
-
-		// 读取消息
-		c.readConnectionsMessages(conn)
-
-		// 连接断开，等待后重连
-		c.connectionsMu.Lock()
-		c.connectionsConn = nil
-		c.connectionsMu.Unlock()
-
-		select {
-		case <-c.stopChan:
-			return
-		case <-time.After(1 * time.Second):
-			// 重连
-		}
-	}
-}
-
-// readConnectionsMessages 读取connections消息
-func (c *WSClient) readConnectionsMessages(conn *websocket.Conn) {
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		var data ConnectionsData
-		if err := json.Unmarshal(message, &data); err != nil {
-			continue
-		}
-
-		if c.connectionsHandler != nil {
-			c.connectionsHandler(data)
-		}
-	}
-}
-
-// connectLogs 连接logs WebSocket
-func (c *WSClient) connectLogs() {
-	// 构建logs URL，带level参数
-	level := c.logLevel
-	if level == "" {
-		level = "debug" // 使用debug级别获取所有日志，由客户端过滤
-	}
-	wsURL := c.buildWSURL("logs?level=" + level)
-	if wsURL == "" {
-		return
-	}
-
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-		if err != nil {
-			// 连接失败，等待后重试
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		c.logsMu.Lock()
-		c.logsConn = conn
-		c.logsMu.Unlock()
-
-		// 读取消息
-		c.readLogsMessages(conn)
-
-		// 连接断开，等待后重连
-		c.logsMu.Lock()
-		c.logsConn = nil
-		c.logsMu.Unlock()
-
-		select {
-		case <-c.stopChan:
-			return
-		case <-time.After(1 * time.Second):
-			// 重连
-		}
-	}
-}
-
-// readLogsMessages 读取logs消息
-func (c *WSClient) readLogsMessages(conn *websocket.Conn) {
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-		}
-
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		var data LogData
-		if err := json.Unmarshal(message, &data); err != nil {
-			continue
-		}
-
-		if c.logsHandler != nil {
-			c.logsHandler(data)
 		}
 	}
 }
