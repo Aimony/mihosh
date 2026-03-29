@@ -49,18 +49,25 @@ func (s *ProxyService) TestGroupDelay(group string) error {
 	return s.client.TestGroupDelay(group, s.testURL, s.timeout)
 }
 
+const testAllConcurrency = 20
+
 // TestAllProxies 批量测试代理延迟（返回每个代理的测试结果）
 func (s *ProxyService) TestAllProxies(proxies []string) map[string]int {
 	results := make(map[string]int)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
+	sem := make(chan struct{}, testAllConcurrency)
+
 	for _, p := range proxies {
 		wg.Add(1)
 		go func(proxy string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
 			delay, err := s.TestProxyDelay(proxy)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
