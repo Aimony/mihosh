@@ -20,10 +20,12 @@ type ConnectionsPageState struct {
 	ScrollTop          int
 	FilterText         string
 	FilterMode         bool
-	DetailMode         bool              // 是否显示详情
-	SelectedConnection *model.Connection // 选中的连接
-	IPInfo             *model.IPInfo     // 目标IP地理信息
-	DetailScroll       int               // 详情页面滚动偏移
+	DetailMode            bool              // 是否显示详情
+	SelectedConnection    *model.Connection // 选中的连接
+	IPInfo                *model.IPInfo     // 目标IP地理信息
+	DetailLeftScroll      int               // 详情左侧页面滚动偏移
+	DetailRightScroll     int               // 详情右侧页面滚动偏移
+	DetailFocusPanel      int               // 详情当前焦点面板
 	// 图表数据
 	ChartData *model.ChartData
 	// 视图模式
@@ -38,7 +40,15 @@ type ConnectionsPageState struct {
 func RenderConnectionsPage(state ConnectionsPageState) string {
 	// 详情模式：渲染连接详情
 	if state.DetailMode && state.SelectedConnection != nil {
-		return connections.RenderConnectionDetail(state.SelectedConnection, state.IPInfo, state.Height, state.DetailScroll)
+		return connections.RenderConnectionDetailModal(
+			state.SelectedConnection,
+			state.IPInfo,
+			state.Width,
+			state.Height,
+			state.DetailLeftScroll,
+			state.DetailRightScroll,
+			state.DetailFocusPanel,
+		)
 	}
 
 	// 样式定义

@@ -32,11 +32,13 @@ type ConnsState struct {
 	connScrollTop      int
 	connFilterMode     bool
 	connFilter         string
-	connDetailMode     bool
-	connDetailSnapshot *model.Connection
-	connIPInfo         *model.IPInfo
-	connDetailScroll   int
-	connViewMode       int // 0=活跃, 1=历史
+	connDetailMode        bool
+	connDetailSnapshot    *model.Connection
+	connIPInfo            *model.IPInfo
+	connDetailLeftScroll  int
+	connDetailRightScroll int
+	connDetailFocusPanel  int // 0=左侧(基础+地理), 1=右侧(JSON)
+	connViewMode          int // 0=活跃, 1=历史
 
 	siteTests        []model.SiteTest
 	selectedSiteTest int
@@ -88,11 +90,13 @@ func (s ConnsState) ToPageState(chartData *model.ChartData, width, height int) p
 		ScrollTop:          s.connScrollTop,
 		FilterText:         s.connFilter,
 		FilterMode:         s.connFilterMode,
-		DetailMode:         s.connDetailMode,
-		SelectedConnection: s.connDetailSnapshot,
-		IPInfo:             s.connIPInfo,
-		DetailScroll:       s.connDetailScroll,
-		ChartData:          chartData,
+		DetailMode:            s.connDetailMode,
+		SelectedConnection:    s.connDetailSnapshot,
+		IPInfo:                s.connIPInfo,
+		DetailLeftScroll:      s.connDetailLeftScroll,
+		DetailRightScroll:     s.connDetailRightScroll,
+		DetailFocusPanel:      s.connDetailFocusPanel,
+		ChartData:             chartData,
 		ViewMode:           s.connViewMode,
 		ClosedConnections:  s.ClosedConnections(),
 		SiteTests:          s.siteTests,
@@ -105,17 +109,37 @@ func (s ConnsState) Update(msg tea.KeyMsg, client *api.Client, timeout int) (Con
 	// 详情模式
 	if s.connDetailMode {
 		switch {
-		case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Enter):
+		case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Enter), msg.String() == "q":
 			s.connDetailMode = false
 			s.connDetailSnapshot = nil
 			s.connIPInfo = nil
-			s.connDetailScroll = 0
-		case key.Matches(msg, keys.Up):
-			if s.connDetailScroll > 0 {
-				s.connDetailScroll--
+			s.connDetailLeftScroll = 0
+			s.connDetailRightScroll = 0
+			s.connDetailFocusPanel = 0
+		case key.Matches(msg, keys.Left), msg.String() == "h":
+			if s.connDetailFocusPanel > 0 {
+				s.connDetailFocusPanel--
 			}
-		case key.Matches(msg, keys.Down):
-			s.connDetailScroll++
+		case key.Matches(msg, keys.Right), msg.String() == "l":
+			if s.connDetailFocusPanel < 1 {
+				s.connDetailFocusPanel++
+			}
+		case key.Matches(msg, keys.Up), msg.String() == "k":
+			if s.connDetailFocusPanel == 0 {
+				if s.connDetailLeftScroll > 0 {
+					s.connDetailLeftScroll--
+				}
+			} else {
+				if s.connDetailRightScroll > 0 {
+					s.connDetailRightScroll--
+				}
+			}
+		case key.Matches(msg, keys.Down), msg.String() == "j":
+			if s.connDetailFocusPanel == 0 {
+				s.connDetailLeftScroll++
+			} else {
+				s.connDetailRightScroll++
+			}
 		}
 		return s, nil
 	}
@@ -246,15 +270,43 @@ func (s ConnsState) HandleMouseLeft(
 }
 
 // HandleMouseScroll 鼠标滚轮处理
-func (s ConnsState) HandleMouseScroll(up bool) ConnsState {
+func (s ConnsState) HandleMouseScroll(up bool, mainX, mainY, mainWidth, mainHeight int) ConnsState {
 	if s.connDetailMode {
+		innerW := mainWidth - 6
+		isRightSide := false
+		if innerW >= 100 {
+			// 宽屏布局，左右排布，分界点大概是 innerW * 4 / 10 + 左侧边距
+			isRightSide = mainX > (mainWidth * 4 / 10)
+		} else {
+			// 窄屏布局，上下排布，分界点大概是 mainHeight / 2
+			isRightSide = mainY > (mainHeight / 2)
+		}
+
 		if up {
-			if s.connDetailScroll > 0 {
-				s.connDetailScroll--
+			if isRightSide {
+				if s.connDetailRightScroll > 0 {
+					s.connDetailRightScroll--
+				}
+			} else {
+				if s.connDetailLeftScroll > 0 {
+					s.connDetailLeftScroll--
+				}
 			}
 		} else {
-			s.connDetailScroll++
+			if isRightSide {
+				s.connDetailRightScroll++
+			} else {
+				s.connDetailLeftScroll++
+			}
 		}
+
+		// 根据鼠标位置自动设置焦点
+		if isRightSide {
+			s.connDetailFocusPanel = 1
+		} else {
+			s.connDetailFocusPanel = 0
+		}
+
 		return s
 	}
 	count := s.filteredConnCount()

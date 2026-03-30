@@ -76,9 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.handleConnectionsMouseLeft(msg.X, msg.Y)
 			}
 		case isMouseWheelUp(msg):
-			return m.handleMouseScroll(true, msg.X)
+			return m.handleMouseScroll(true, msg.X, msg.Y)
 		case isMouseWheelDown(msg):
-			return m.handleMouseScroll(false, msg.X)
+			return m.handleMouseScroll(false, msg.X, msg.Y)
 		}
 		return m, nil
 
@@ -298,7 +298,7 @@ func (m *Model) refreshCurrentPage() tea.Cmd {
 }
 
 // handleMouseScroll 处理鼠标滚轮滚动
-func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
+func (m Model) handleMouseScroll(up bool, x, y int) (tea.Model, tea.Cmd) {
 	if x >= 0 && x < components.SidebarWidth {
 		if up {
 			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
@@ -308,11 +308,20 @@ func (m Model) handleMouseScroll(up bool, x int) (tea.Model, tea.Cmd) {
 		return m, m.onPageChange()
 	}
 
+	sidebarRenderedWidth := components.SidebarWidth + 1
+	mainWidth := m.width - sidebarRenderedWidth
+	if mainWidth < common.MinMainWidth {
+		mainWidth = common.MinMainWidth
+	}
+	mainX := x - sidebarRenderedWidth
+	mainY := y
+	mainHeight := m.height
+
 	switch m.currentPage {
 	case components.PageNodes:
 		m.nodesState = m.nodesState.HandleMouseScroll(up)
 	case components.PageConnections:
-		m.connsState = m.connsState.HandleMouseScroll(up)
+		m.connsState = m.connsState.HandleMouseScroll(up, mainX, mainY, mainWidth, mainHeight)
 	case components.PageLogs:
 		m.logsState = m.logsState.HandleMouseScroll(up)
 	case components.PageRules:
