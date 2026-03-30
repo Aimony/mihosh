@@ -50,7 +50,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
+		return m, tea.ClearScreen
 
 	// ── 全局：鼠标事件 ──
 	case tea.MouseMsg:
@@ -62,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				contentHeight = common.MinContentHeight
 			}
 			if msg.X >= 0 && msg.X < components.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
-				clickedPage := components.GetClickedPage(msg.X, msg.Y)
+				clickedPage := components.GetClickedPage(msg.X, msg.Y, contentHeight)
 				if clickedPage >= 0 && clickedPage < components.PageCount {
 					m.currentPage = clickedPage
 					return m, m.onPageChange()
@@ -336,13 +336,13 @@ func (m Model) handleNodesMouseLeft(x, y int) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleConnectionsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
-	pageX, pageY, _, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
+	pageX, pageY, pageWidth, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
 	if !ok {
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.connsState, cmd = m.connsState.HandleMouseLeft(pageX, pageY, m.width, pageHeight, m.chartData, m.timeout)
+	m.connsState, cmd = m.connsState.HandleMouseLeft(pageX, pageY, pageWidth, pageHeight, m.chartData, m.timeout)
 	return m, cmd
 }
 

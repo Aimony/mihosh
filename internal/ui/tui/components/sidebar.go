@@ -63,10 +63,18 @@ func RenderSidebar(currentPage PageType, height int) string {
 
 	content := strings.Join(items, "\n")
 
-	// 用右侧边框分隔
+	// 截断超出的内容，防止侧边栏溢出
+	lines := strings.Split(content, "\n")
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	content = strings.Join(lines, "\n")
+
+	// 用右侧边框分隔，内容垂直居中
 	barStyle := lipgloss.NewStyle().
 		Width(SidebarWidth).
 		Height(height).
+		AlignVertical(lipgloss.Center).
 		BorderStyle(lipgloss.Border{Right: "│"}).
 		BorderRight(true).
 		BorderForeground(styles.ColorBorder)
@@ -92,20 +100,25 @@ func SidebarMenuHeight(height int) int {
 }
 
 // GetClickedPage 获取点击位置对应的页面类型
-// x, y 是点击的绝对坐标
+// x, y 是点击的绝对坐标，height 是侧边栏的实际可用高度（contentHeight）
 // 返回对应的页面类型，如果点击不在菜单区域返回 -1
-func GetClickedPage(x, y int) PageType {
+func GetClickedPage(x, y, height int) PageType {
 	// 侧边栏宽度为6（不含右边框），点击的X坐标应该 < 6
 	if x < 0 || x >= SidebarWidth {
 		return -1
 	}
 
-	// 每个菜单项占1行，项之间有1个空行
-	// 节点在 y=0, 连接在 y=2, 日志在 y=4, 规则在 y=6, 设置在 y=8
-	menuY := y
-	menuHeight := SidebarMenuHeight(0)
+	// 菜单内容共 9 行（5项 + 4空行），lipgloss AlignVertical(Center)
+	// 会在顶部插入 (height - 9) / 2 行空白，需要减去该偏移
+	const menuContentHeight = 9
+	topPadding := (height - menuContentHeight) / 2
+	if topPadding < 0 {
+		topPadding = 0
+	}
 
-	if menuY < 0 || menuY >= menuHeight {
+	// 将绝对 y 转换为菜单内的相对 y
+	menuY := y - topPadding
+	if menuY < 0 || menuY >= menuContentHeight {
 		return -1
 	}
 

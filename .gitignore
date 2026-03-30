@@ -34,3 +34,4 @@ deploy.ps1
 docs/*
 .gocache/*
 AGENTS_MD_RESEARCH_SUMMARY.md
+*.patch
