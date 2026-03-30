@@ -70,71 +70,50 @@ Mihosh 采用**分层 + DDD 弱化**的组织方式：
 
 ```
 d:\Code_Project\Personal\mihosh/
-├── cmd/                          # CLI 命令入口
-│   └── app/main.go               # 应用启动点
+├── main.go                       # 应用启动点
+├── go.mod                        # 模块定义
+├── go.sum                        # 依赖锁文件
 │
 ├── internal/
-│   ├── cli/                      # CLI 命令解析层 (11 文件, ~800 行)
+│   ├── cli/                      # CLI 命令解析层
 │   │   ├── root.go               # TUI 主命令启动
 │   │   ├── list.go               # 列表查询命令
-│   │   ├── select.go             # 切换节点命令
-│   │   ├── test.go               # 单节点测速
-│   │   ├── test_group.go         # 批量测速
-│   │   └── ...
+│   │   ├── ...
 │   │
-│   ├── domain/model/             # 业务数据模型 (8 文件, ~261 行)
+│   ├── domain/model/             # 业务数据模型
 │   │   ├── proxy.go              # Proxy, Group 定义
 │   │   ├── connection.go         # Connection 连接数据
-│   │   ├── log_entry.go          # LogEntry 日志条目
-│   │   ├── rule.go               # Rule 规则定义
-│   │   ├── ipinfo.go             # IPInfo 地理位置
-│   │   ├── chart.go              # ChartData 图表数据
 │   │   └── ...
 │   │
-│   ├── infrastructure/           # 基础设施适配器
+│   ├── infrastructure/           # 基础设施适配器 (API, Config)
 │   │   ├── api/
-│   │   │   ├── client.go         # HTTP 客户端 (~100 行)
-│   │   │   └── websocket.go      # WebSocket 适配 (280 行)⭐
-│   │   └── config/
-│   │       └── loader.go         # 配置加载器
+│   │   │   ├── client.go         # HTTP 客户端
+│   │   │   └── websocket.go      # WebSocket 适配 ⭐
 │   │
-│   ├── app/service/              # 业务服务编排 (3 文件, ~150 行)
-│   │   ├── proxy.go              # 代理管理服务 (Semaphore)⭐
-│   │   ├── config.go             # 配置服务
-│   │   └── connection.go         # 连接管理服务
+│   ├── app/service/              # 业务服务编排
+│   │   ├── proxy.go              # 代理管理服务 (Semaphore) ⭐
+│   │   └── ...
 │   │
-│   └── ui/tui/                   # TUI 界面主层 (~2500 行)⭐⭐⭐
-│       ├── model.go              # 主 Model struct (51 字段, 232 行)
-│       ├── update.go             # 消息路由与状态更新 (308 行)
-│       ├── view.go               # 页面综合渲染 (81 行)
-│       ├── page_renders.go       # 页面委托器 (46 行)
-│       ├── commands.go           # tea.Cmd 定义 (~150 行)
+│   └── ui/tui/                   # TUI 界面主层 (FSD 架构) ⭐⭐⭐
+│       ├── model.go              # 主 Model (精简全局状态)
+│       ├── update.go             # 消息路由与页面分发
+│       ├── view.go               # 顶级布局渲染
+│       ├── page_renders.go       # 页面委托器 (Bridge to Features)
 │       │
-│       ├── 页面状态管理 (5 x *_state.go, ~1150 行)
-│       │   ├── nodes_state.go    # 节点管理页面状态 (200+ 行)
-│       │   ├── conns_state.go    # 连接监控页面状态 (400+ 行)
-│       │   ├── logs_state.go     # 日志查看页面状态 (250+ 行)
-│       │   ├── rules_state.go    # 规则管理页面状态 (130+ 行)
-│       │   └── settings_state.go # 设置编辑页面状态 (120+ 行)
-│       │
-│       └── pages/                # 页面渲染函数 (6 文件, ~1500 行)
-│           ├── nodes.go          # 节点列表渲染 (350+ 行)
-│           ├── connections.go    # 连接表格渲染 (400+ 行)
-│           ├── logs.go           # 日志界面渲染 (350+ 行)
-│           ├── rules.go          # 规则列表渲染 (200+ 行)
-│           ├── settings.go       # 配置编辑渲染 (150+ 行)
-│           └── help.go           # 帮助弹窗 (50 行)
+│       └── features/             # 业务特性模块 (Feature-Sliced Design)
+│           ├── nodes/            # 节点管理特性
+│           │   ├── state.go      # NodesState 定义与逻辑
+│           │   ├── view.go       # 节点页面渲染
+│           │   └── ...
+│           ├── connections/      # 连接监控特性
+│           ├── logs/             # 日志查看特性
+│           ├── rules/            # 规则管理特性
+│           └── settings/         # 设置编辑特性
 │
-├── pkg/utils/                    # 工具函数库 (3 文件, ~100 行)
-│   ├── logger.go
-│   ├── format.go
-│   └── ...
-│
+├── pkg/utils/                    # 工具函数库
 ├── docs/                         # 文档
 ├── build/                        # 构建脚本
 └── ...
-
-总代码统计：8270 行 Go 代码 (含注释和空行)
 ```
 
 ---
@@ -186,13 +165,13 @@ cat config.example.yaml
 # 在项目根目录运行
 
 # 完整编译 (生成 Windows 可执行文件)
-go build -o mihosh.exe ./cmd/app
+go build -o mihosh.exe .
 
 # 快速运行 TUI (需要本地 Mihomo 代理服务)
-go run ./cmd/app
+go run .
 
 # 编译为 Linux 可执行文件
-GOOS=linux GOARCH=amd64 go build -o mihosh ./cmd/app
+GOOS=linux GOARCH=amd64 go build -o mihosh .
 
 # 快速迭代 (安装 air，支持热重载)
 # https://github.com/cosmtrek/air
@@ -239,7 +218,7 @@ go mod verify
 
 ```bash
 # 生成 CPU 和内存分析数据 (支持 pprof)
-go run -cpuprofile=cpu.prof -memprofile=mem.prof ./cmd/app
+go run -cpuprofile=cpu.prof -memprofile=mem.prof .
 go tool pprof cpu.prof
 
 # 查看 goroutine 泄漏检查 (运行后 Ctrl+C)
@@ -258,9 +237,9 @@ curl -i -N -H "Connection: Upgrade" \
 ### 5.1 Model 与分层设计（★ 优先避免 ★）
 
 **当前现状**：
-- 主 Model 包含 **51 个字段** (model.go: 232 行)
-- 五个页面各自拥有独立的 State 结构体（nodes/conns/logs/rules/settings）
-- 状态已按页面隔离，符合最佳实践
+- 主 Model 包含 **约 20 个字段** (model.go: ~100 行)
+- 重构后状态通过 `features/` 下的子状态管理，主 Model 仅持有引用。
+- 状态完全按页面隔离，符合 Feature-Sliced Design (FSD) 最佳实践。
 
 **必须遵守的规则**：
 ```
@@ -542,13 +521,13 @@ go func() {  // 冗余代码！
 
 ### 6.1 页面分类与职责
 
-| 页面 | 文件 | 状态结构 | 渲染函数 | 关键特性 |
-|------|------|---------|---------|---------|
-| **Nodes (节点)** | nodes_state.go (200 行) | NodesState | pages/nodes.go (350 行) | 策略组+节点双列表，Semaphore 测速 |
-| **Connections (连接)** | conns_state.go (400 行) | ConnsState | pages/connections.go (400 行) | Ring Buffer 历史，IP 查询，网站测速 |
-| **Logs (日志)** | logs_state.go (250 行) | LogsState | pages/logs.go (350 行) | Ring Buffer 日志，级别过滤，关键词搜索 |
-| **Rules (规则)** | rules_state.go (130 行) | RulesState | pages/rules.go (200 行) | 规则列表，搜索过滤 |
-| **Settings (设置)** | settings_state.go (120 行) | SettingsState | pages/settings.go (150 行) | 配置编辑模式 |
+| 页面 | 状态定义 | 渲染逻辑 | 核心职责 |
+|------|---------|---------|---------|
+| **Nodes (节点)** | features/nodes/state.go | features/nodes/view.go | 策略组/节点管理、并发测速 |
+| **Connections (连接)** | features/connections/state.go | features/connections/view.go | 活跃连接监控、Ring Buffer 历史 |
+| **Logs (日志)** | features/logs/state.go | features/logs/view.go | 实时日志流、Ring Buffer 缓存 |
+| **Rules (规则)** | features/rules/state.go | features/rules/view.go | 规则查询与过滤 |
+| **Settings (设置)** | features/settings/state.go | features/settings/view.go | UI 交互式配置编辑 |
 
 ### 6.2 页面生命周期流程
 
@@ -712,7 +691,7 @@ func (s *ProxyService) TestAllProxies(proxies []string) map[string]int {
 
 **问题 4：日志/连接列表内存占用持续增长**
 - 原因：未使用 Ring Buffer，使用了切片截断
-- 调试：检查 `conns_state.go` 和 `logs_state.go` 是否使用 Ring Buffer
+- 调试：检查 `features/connections/state.go` 和 `features/logs/state.go` 是否使用 Ring Buffer
 
 **问题 5：文件句柄耗尽 ("too many open files")**
 - 原因：WebSocket 连接泄漏 / 并发请求过多

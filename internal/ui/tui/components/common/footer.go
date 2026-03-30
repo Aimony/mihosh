@@ -24,9 +24,9 @@ func RenderFooter(width, height, currentContentHeight int, helpText string) stri
 	}
 
 	padding := strings.Repeat("\n", paddingLines)
-	
+
 	// 使用统一的样式
 	styledFooter := styles.FooterStyle.Width(width).Render(helpText)
-	
+
 	return padding + styledFooter
 }

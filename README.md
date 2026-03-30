@@ -92,7 +92,7 @@ mihosh config show --output table    # Show config in table format
 ```bash
 go mod tidy      # Install dependencies
 go test ./...    # Run tests
-go build         # Build
+go build .       # Build
 ```
 
 ## License

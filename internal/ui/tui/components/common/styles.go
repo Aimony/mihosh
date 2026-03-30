@@ -31,7 +31,7 @@ var (
 	TableHeaderStyle = lipgloss.NewStyle().Foreground(CMuted).Bold(true)
 	TableBorderStyle = lipgloss.NewStyle().Foreground(CBorder)
 	SelectedStyle    = lipgloss.NewStyle().Foreground(CActive).Bold(true)
-	
+
 	// 页面标题
 	PageHeaderStyle = lipgloss.NewStyle().
 			Bold(true).

@@ -2,8 +2,8 @@ package tui
 
 import (
 	"github.com/aimony/mihosh/internal/ui/styles"
-	"github.com/aimony/mihosh/internal/ui/tui/components"
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
+	"github.com/aimony/mihosh/internal/ui/tui/components/layout"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -20,8 +20,8 @@ func (m Model) View() string {
 	}
 
 	// ── 布局参数 ──
-	sidebarRenderedWidth := components.SidebarWidth + 1 // 含右边框 │
-	statusBarHeight := common.StatusBarHeight           // 分隔线 + 信息行
+	sidebarRenderedWidth := layout.SidebarWidth + 1 // 含右边框 │
+	statusBarHeight := common.StatusBarHeight       // 分隔线 + 信息行
 	contentHeight := m.height - statusBarHeight
 	if contentHeight < common.MinContentHeight {
 		contentHeight = common.MinContentHeight
@@ -32,25 +32,25 @@ func (m Model) View() string {
 	}
 
 	// ── 侧边栏 ──
-	sidebar := components.RenderSidebar(m.currentPage, contentHeight)
+	sidebar := layout.RenderSidebar(m.currentPage, contentHeight)
 
 	// ── 渲染当前页面内容 ──
 	var pageContent string
 	switch m.currentPage {
-	case components.PageNodes:
+	case layout.PageNodes:
 		pageContent = m.renderNodesPage()
-	case components.PageConnections:
+	case layout.PageConnections:
 		pageContent = m.renderConnectionsPage()
-	case components.PageSettings:
+	case layout.PageSettings:
 		pageContent = m.renderSettingsPage()
-	case components.PageLogs:
+	case layout.PageLogs:
 		pageContent = m.renderLogsPage()
-	case components.PageRules:
+	case layout.PageRules:
 		pageContent = m.renderRulesPage()
 	}
 
 	// ── 主面板 ──
-	pageTitle := components.GetPageTitle(m.currentPage)
+	pageTitle := layout.GetPageTitle(m.currentPage)
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(styles.ColorPrimary).
@@ -76,15 +76,15 @@ func (m Model) View() string {
 
 	// ── 底部状态栏 ──
 	var uploadTotal, downloadTotal int64
-	if m.connsState.connections != nil {
-		uploadTotal = m.connsState.connections.UploadTotal
-		downloadTotal = m.connsState.connections.DownloadTotal
+	if m.connsState.Connections != nil {
+		uploadTotal = m.connsState.Connections.UploadTotal
+		downloadTotal = m.connsState.Connections.DownloadTotal
 	}
-	statusBar := components.RenderStatusBar(
+	statusBar := layout.RenderStatusBar(
 		m.width,
 		m.err,
-		m.nodesState.testing,
-		m.nodesState.testingTarget,
+		m.nodesState.Testing,
+		m.nodesState.TestingTarget,
 		m.chartData,
 		uploadTotal,
 		downloadTotal,

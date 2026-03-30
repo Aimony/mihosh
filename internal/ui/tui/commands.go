@@ -1,86 +1,30 @@
 package tui
 
 import (
+	"github.com/aimony/mihosh/internal/ui/tui/features/connections"
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
-	"time"
 
-	"github.com/aimony/mihosh/internal/app/service"
-	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/messages"
+
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// 命令函数
-func fetchGroups(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		groups, orderedNames, err := client.GetGroups()
-		if err != nil {
-			return errMsg(err)
-		}
-		return groupsMsg{groups: groups, orderedNames: orderedNames}
-	}
-}
-
-func fetchProxies(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return errMsg(err)
-		}
-		return proxiesMsg(proxies)
-	}
-}
-
-func fetchConnections(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		conns, err := client.GetConnections()
-		if err != nil {
-			return errMsg(err)
-		}
-		return connectionsMsg(conns)
-	}
-}
-
-// memoryMsg 内存消息
-type memoryMsg struct {
-	memory int64
-}
-
-// trafficWSMsg 流量WebSocket消息
-type trafficWSMsg struct {
-	up   int64
-	down int64
-}
-
-// connectionsWSMsg 连接WebSocket消息
-type connectionsWSMsg struct {
-	data api.ConnectionsData
-}
-
-// logsWSMsg 日志WebSocket消息
-type logsWSMsg struct {
-	logType string
-	payload string
-}
-
+// fetchMemory 获取当前内存使用量
 func fetchMemory(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		mem, err := client.GetMemory()
 		if err != nil {
 			// 内存获取失败不报错，返回0
-			return memoryMsg{memory: 0}
+			return messages.MemoryWSMsg{Memory: 0}
 		}
-		return memoryMsg{memory: mem.Inuse}
+		return messages.MemoryWSMsg{Memory: mem.Inuse}
 	}
 }
 
 // fetchConnectionsAndMemory 同时获取连接和内存数据
 func fetchConnectionsAndMemory(client *api.Client) tea.Cmd {
-	return tea.Batch(fetchConnections(client), fetchMemory(client))
+	return tea.Batch(connections.FetchConnections(client), fetchMemory(client))
 }
 
 // startWSStreams 启动WebSocket流
@@ -93,7 +37,7 @@ func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
 		// 设置内存处理器
 		wsClient.SetMemoryHandler(func(data api.MemoryData) {
 			select {
-			case msgChan <- memoryMsg{memory: data.Inuse}:
+			case msgChan <- messages.MemoryWSMsg{Memory: data.Inuse}:
 			default:
 				// channel满了就丢弃
 			}
@@ -102,7 +46,7 @@ func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
 		// 设置流量处理器
 		wsClient.SetTrafficHandler(func(data api.TrafficData) {
 			select {
-			case msgChan <- trafficWSMsg{up: data.Up, down: data.Down}:
+			case msgChan <- messages.TrafficWSMsg{Up: data.Up, Down: data.Down}:
 			default:
 				// channel满了就丢弃
 			}
@@ -111,7 +55,7 @@ func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
 		// 设置连接处理器
 		wsClient.SetConnectionsHandler(func(data api.ConnectionsData) {
 			select {
-			case msgChan <- connectionsWSMsg{data: data}:
+			case msgChan <- messages.ConnectionsWSMsg{Data: data}:
 			default:
 				// channel满了就丢弃
 			}
@@ -120,7 +64,7 @@ func startWSStreams(wsClient *api.WSClient, msgChan chan interface{}) tea.Cmd {
 		// 设置日志处理器
 		wsClient.SetLogsHandler(func(data api.LogData) {
 			select {
-			case msgChan <- logsWSMsg{logType: data.Type, payload: data.Payload}:
+			case msgChan <- messages.LogsWSMsg{LogType: data.Type, Payload: data.Payload}:
 			default:
 				// channel满了就丢弃
 			}
@@ -158,213 +102,6 @@ func listenWSMessages(ctx context.Context, msgChan chan interface{}) tea.Cmd {
 	}
 }
 
-func selectProxy(client *api.Client, group, proxy string) tea.Cmd {
-	return func() tea.Msg {
-		if err := client.SelectProxy(group, proxy); err != nil {
-			return errMsg(err)
-		}
-		// 需要同时刷新groups和proxies,确保✓标记更新
-		return tea.Batch(fetchGroups(client), fetchProxies(client))()
-	}
-}
 
-func testProxy(client *api.Client, name, testURL string, timeout int) tea.Cmd {
-	return func() tea.Msg {
-		delay, err := client.TestProxyDelay(name, testURL, timeout)
-		if err != nil {
-			return testDoneMsg{name: name, delay: -1, err: err}
-		}
-		return testDoneMsg{name: name, delay: delay, err: nil}
-	}
-}
 
-func testGroup(client *api.Client, group, testURL string, timeout int) tea.Cmd {
-	return func() tea.Msg {
-		if err := client.TestGroupDelay(group, testURL, timeout); err != nil {
-			return errMsg(err)
-		}
-		return testDoneMsg{}
-	}
-}
 
-// testAllProxies 批量测试所有节点（使用 Service 层并发）
-func testAllProxies(proxySvc *service.ProxyService, proxies []string) tea.Cmd {
-	return func() tea.Msg {
-		results := proxySvc.TestAllProxies(proxies)
-		return testAllDoneMsg{results: results}
-	}
-}
-
-// closeConnection 关闭单个连接
-func closeConnection(client *api.Client, id string) tea.Cmd {
-	return func() tea.Msg {
-		if err := client.CloseConnection(id); err != nil {
-			return errMsg(err)
-		}
-		return connectionClosedMsg{id: id}
-	}
-}
-
-// closeAllConnections 关闭所有连接
-func closeAllConnections(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		if err := client.CloseAllConnections(); err != nil {
-			return errMsg(err)
-		}
-		return allConnectionsClosedMsg{}
-	}
-}
-
-// ipInfoMsg IP信息响应消息
-type ipInfoMsg struct {
-	info *model.IPInfo
-	err  error
-}
-
-// fetchIPInfo 获取IP地理位置信息
-func fetchIPInfo(ip string) tea.Cmd {
-	return func() tea.Msg {
-		if ip == "" {
-			return ipInfoMsg{nil, nil}
-		}
-
-		client := &http.Client{Timeout: 5 * time.Second}
-		url := fmt.Sprintf("https://api.ip.sb/geoip/%s", ip)
-
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return ipInfoMsg{nil, err}
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Accept", "*/*")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return ipInfoMsg{nil, err}
-		}
-		defer resp.Body.Close()
-
-		var info model.IPInfo
-		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-			return ipInfoMsg{nil, err}
-		}
-
-		return ipInfoMsg{&info, nil}
-	}
-}
-
-// rulesMsg 规则消息
-type rulesMsg []model.Rule
-
-// fetchRules 获取规则列表
-func fetchRules(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		rules, err := client.GetRules()
-		if err != nil {
-			return errMsg(err)
-		}
-		return rulesMsg(rules.Rules)
-	}
-}
-
-// siteTestMsg 网站测速结果消息
-type siteTestMsg struct {
-	name  string
-	delay int
-	err   error
-}
-
-// testSiteDelay 测试单个网站延迟（通过代理）
-func testSiteDelay(proxyAddr string, siteName string, siteURL string, timeout int) tea.Cmd {
-	return func() tea.Msg {
-		// 创建带代理的HTTP客户端
-		client := &http.Client{
-			Timeout: time.Duration(timeout) * time.Millisecond,
-		}
-
-		// 如果配置了代理地址，使用代理
-		if proxyAddr != "" {
-			proxyURL, err := parseProxyURL(proxyAddr)
-			if err == nil {
-				client.Transport = &http.Transport{
-					Proxy: http.ProxyURL(proxyURL),
-				}
-			}
-		}
-
-		start := time.Now()
-		req, err := http.NewRequest("GET", siteURL, nil)
-		if err != nil {
-			return siteTestMsg{name: siteName, delay: 0, err: err}
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return siteTestMsg{name: siteName, delay: 0, err: err}
-		}
-		defer resp.Body.Close()
-
-		delay := int(time.Since(start).Milliseconds())
-		return siteTestMsg{name: siteName, delay: delay, err: nil}
-	}
-}
-
-// parseProxyURL 解析代理地址
-func parseProxyURL(addr string) (*url.URL, error) {
-	// 确保有协议前缀
-	if !hasScheme(addr) {
-		addr = "http://" + addr
-	}
-	return url.Parse(addr)
-}
-
-// hasScheme 检查地址是否有协议前缀
-func hasScheme(addr string) bool {
-	return len(addr) > 7 && (addr[:7] == "http://" || addr[:8] == "https://" || addr[:9] == "socks5://")
-}
-
-// convertToConnectionsResponse 将 api.ConnectionsData 转换为 model.ConnectionsResponse
-func convertToConnectionsResponse(data api.ConnectionsData) *model.ConnectionsResponse {
-	connections := make([]model.Connection, len(data.Connections))
-	for i, conn := range data.Connections {
-		connections[i] = model.Connection{
-			ID:            conn.ID,
-			Upload:        conn.Upload,
-			Download:      conn.Download,
-			Start:         conn.Start,
-			Chains:        conn.Chains,
-			Rule:          conn.Rule,
-			RulePayload:   conn.RulePayload,
-			DownloadSpeed: conn.DownloadSpeed,
-			UploadSpeed:   conn.UploadSpeed,
-			Metadata: model.Metadata{
-				Network:         conn.Metadata.Network,
-				Type:            conn.Metadata.Type,
-				SourceIP:        conn.Metadata.SourceIP,
-				DestinationIP:   conn.Metadata.DestinationIP,
-				SourcePort:      conn.Metadata.SourcePort,
-				DestinationPort: conn.Metadata.DestinationPort,
-				Host:            conn.Metadata.Host,
-				Process:         conn.Metadata.Process,
-				ProcessPath:     conn.Metadata.ProcessPath,
-			},
-		}
-	}
-	return &model.ConnectionsResponse{
-		DownloadTotal: data.DownloadTotal,
-		UploadTotal:   data.UploadTotal,
-		Connections:   connections,
-	}
-}
-
-// testAllSites 批量测试所有网站
-func testAllSites(proxyAddr string, sites []model.SiteTest, timeout int) tea.Cmd {
-	return func() tea.Msg {
-		var cmds []tea.Cmd
-		for _, site := range sites {
-			cmds = append(cmds, testSiteDelay(proxyAddr, site.Name, site.URL, timeout))
-		}
-		return tea.Batch(cmds...)()
-	}
-}

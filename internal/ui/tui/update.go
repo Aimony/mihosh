@@ -1,19 +1,19 @@
 package tui
 
 import (
+	"github.com/aimony/mihosh/internal/ui/tui/features/connections"
+	"github.com/aimony/mihosh/internal/ui/tui/features/nodes"
+	"github.com/aimony/mihosh/internal/ui/tui/features/rules"
 	"time"
 
-	"github.com/aimony/mihosh/internal/ui/tui/components"
+	"github.com/aimony/mihosh/internal/ui/tui/components/layout"
+
+	"github.com/aimony/mihosh/internal/ui/tui/messages"
+
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-// connTickMsg 连接页面定时刷新消息
-type connTickMsg time.Time
-
-// logsTickMsg 日志页面定时刷新消息
-type logsTickMsg time.Time
 
 // connRefreshInterval 连接刷新间隔
 const connRefreshInterval = 1 * time.Second
@@ -21,22 +21,22 @@ const connRefreshInterval = 1 * time.Second
 // connTick 创建连接页面定时器
 func connTick() tea.Cmd {
 	return tea.Tick(connRefreshInterval, func(t time.Time) tea.Msg {
-		return connTickMsg(t)
+		return messages.ConnTickMsg(t)
 	})
 }
 
 // logsTick 创建日志页面定时器
 func logsTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return logsTickMsg(t)
+		return messages.LogsTickMsg(t)
 	})
 }
 
 // Init 初始化
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		fetchGroups(m.client),
-		fetchProxies(m.client),
+		nodes.FetchGroups(m.client),
+		nodes.FetchProxies(m.client),
 		startWSStreams(m.wsClient, m.wsMsgChan),
 		listenWSMessages(m.wsCtx, m.wsMsgChan),
 	)
@@ -61,18 +61,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if contentHeight < common.MinContentHeight {
 				contentHeight = common.MinContentHeight
 			}
-			if msg.X >= 0 && msg.X < components.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
-				clickedPage := components.GetClickedPage(msg.X, msg.Y, contentHeight)
-				if clickedPage >= 0 && clickedPage < components.PageCount {
+			if msg.X >= 0 && msg.X < layout.SidebarWidth && msg.Y >= 0 && msg.Y < contentHeight {
+				clickedPage := layout.GetClickedPage(msg.X, msg.Y, contentHeight)
+				if clickedPage >= 0 && clickedPage < layout.PageCount {
 					m.currentPage = clickedPage
 					return m, m.onPageChange()
 				}
 			}
 
-			if m.currentPage == components.PageNodes {
+			if m.currentPage == layout.PageNodes {
 				return m.handleNodesMouseLeft(msg.X, msg.Y)
 			}
-			if m.currentPage == components.PageConnections {
+			if m.currentPage == layout.PageConnections {
 				return m.handleConnectionsMouseLeft(msg.X, msg.Y)
 			}
 		case isMouseWheelUp(msg):
@@ -91,7 +91,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 				return m, nil
 			}
-			if key.Matches(msg, keys.Quit) {
+			if key.Matches(msg, common.Keys.Quit) {
 				return m, tea.Quit
 			}
 			return m, nil
@@ -105,38 +105,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// 全局快捷键
 		switch {
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, common.Keys.Quit):
 			return m, tea.Quit
 
-		case key.Matches(msg, keys.NextPage):
-			m.currentPage = (m.currentPage + 1) % components.PageCount
+		case key.Matches(msg, common.Keys.NextPage):
+			m.currentPage = (m.currentPage + 1) % layout.PageCount
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.PrevPage):
-			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
+		case key.Matches(msg, common.Keys.PrevPage):
+			m.currentPage = (m.currentPage + layout.PageCount - 1) % layout.PageCount
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page1):
-			m.currentPage = components.PageNodes
+		case key.Matches(msg, common.Keys.Page1):
+			m.currentPage = layout.PageNodes
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page2):
-			m.currentPage = components.PageConnections
+		case key.Matches(msg, common.Keys.Page2):
+			m.currentPage = layout.PageConnections
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page3):
-			m.currentPage = components.PageLogs
+		case key.Matches(msg, common.Keys.Page3):
+			m.currentPage = layout.PageLogs
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page4):
-			m.currentPage = components.PageRules
+		case key.Matches(msg, common.Keys.Page4):
+			m.currentPage = layout.PageRules
 			return m, m.onPageChange()
 
-		case key.Matches(msg, keys.Page5):
-			m.currentPage = components.PageSettings
+		case key.Matches(msg, common.Keys.Page5):
+			m.currentPage = layout.PageSettings
 			return m, nil
 
-		case key.Matches(msg, keys.Refresh):
+		case key.Matches(msg, common.Keys.Refresh):
 			return m, m.refreshCurrentPage()
 		}
 
@@ -145,99 +145,100 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// ── 数据消息：分发到子状态 ──
 
-	case groupsMsg:
-		m.nodesState = m.nodesState.ApplyGroups(msg.groups, msg.orderedNames)
+	case messages.GroupsMsg:
+		m.nodesState = m.nodesState.ApplyGroups(msg.Groups, msg.OrderedNames)
 
-	case proxiesMsg:
+	case messages.ProxiesMsg:
 		m.nodesState = m.nodesState.ApplyProxies(msg)
 
-	case connectionsMsg:
-		m.connsState = m.connsState.ApplyConnections(msg)
-		if msg != nil && m.chartData != nil {
-			m.chartData.AddConnCountData(len(msg.Connections))
+	case messages.ConnectionsMsg:
+		m.connsState = m.connsState.ApplyConnections(msg.Resp)
+		if msg.Resp != nil && m.chartData != nil {
+			m.chartData.AddConnCountData(len(msg.Resp.Connections))
 		}
 
-	case memoryMsg:
+	case messages.MemoryWSMsg:
 		if m.chartData != nil {
-			m.chartData.AddMemoryData(msg.memory)
+			m.chartData.AddMemoryData(msg.Memory)
 		}
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
-	case trafficWSMsg:
+	case messages.TrafficWSMsg:
 		if m.chartData != nil {
-			m.chartData.AddSpeedData(msg.up, msg.down)
+			m.chartData.AddSpeedData(msg.Up, msg.Down)
 		}
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
-	case connectionsWSMsg:
-		m.connsState = m.connsState.ApplyWSConnections(msg.data)
+	case messages.ConnectionsWSMsg:
+		m.connsState = m.connsState.ApplyWSConnections(msg.Data)
 		if m.chartData != nil {
-			m.chartData.AddConnCountData(len(msg.data.Connections))
+			m.chartData.AddConnCountData(len(msg.Data.Connections))
 		}
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
-	case logsWSMsg:
-		m.logsState = m.logsState.AppendLog(msg.logType, msg.payload)
+	case messages.LogsWSMsg:
+		m.logsState = m.logsState.AppendLog(msg.LogType, msg.Payload)
 		if m.wsMsgChan != nil {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
-	case rulesMsg:
+	case messages.RulesMsg:
 		m.rulesState = m.rulesState.ApplyRules(msg)
 
-	case siteTestMsg:
-		m.connsState = m.connsState.ApplySiteTestResult(msg.name, msg.delay, msg.err)
+	case messages.SiteTestMsg:
+		m.connsState = m.connsState.ApplySiteTestResult(msg.Name, msg.Delay, msg.Err)
 
-	case testDoneMsg:
-		m.nodesState = m.nodesState.ApplyTestDone(msg.name, msg.delay, msg.err)
-		if m.nodesState.testAllActive {
+	case messages.TestDoneMsg:
+		m.nodesState = m.nodesState.ApplyTestDone(msg.Name, msg.Delay, msg.Err)
+		// 如果是批量测速，需要补位
+		if m.nodesState.TestAllActive {
 			var batchCmd tea.Cmd
-			m.nodesState, batchCmd = m.nodesState.launchBatchTests(m.client, m.testURL, m.timeout)
-			return m, tea.Batch(fetchProxies(m.client), batchCmd)
+			m.nodesState, batchCmd = m.nodesState.LaunchBatchTests(m.client, m.testURL, m.timeout)
+			return m, batchCmd
 		}
-		return m, fetchProxies(m.client)
+		return m, nodes.FetchProxies(m.client)
 
-	case testAllDoneMsg:
-		m.nodesState = m.nodesState.ApplyTestAllDone(msg.results)
-		return m, fetchProxies(m.client)
+	case messages.TestAllDoneMsg:
+		m.nodesState = m.nodesState.ApplyTestAllDone(msg.Results)
+		return m, nodes.FetchProxies(m.client)
 
-	case ipInfoMsg:
-		if msg.info != nil {
-			m.connsState = m.connsState.ApplyIPInfo(msg.info)
+	case messages.IPInfoMsg:
+		if msg.Info != nil {
+			m.connsState = m.connsState.ApplyIPInfo(msg.Info)
 		}
 
-	case connectionClosedMsg:
+	case messages.ConnectionClosedMsg:
 		m.connsState = m.connsState.ApplyConnectionClosed()
 
-	case allConnectionsClosedMsg:
+	case messages.AllConnectionsClosedMsg:
 		m.connsState = m.connsState.ApplyAllConnectionsClosed()
 
-	case connTickMsg:
-		if m.currentPage == components.PageConnections {
+	case messages.ConnTickMsg:
+		if m.currentPage == layout.PageConnections {
 			return m, connTick()
 		}
 
-	case logsTickMsg:
-		if m.currentPage == components.PageLogs {
+	case messages.LogsTickMsg:
+		if m.currentPage == layout.PageLogs {
 			return m, logsTick()
 		}
 
-	case errMsg:
+	case messages.ErrMsg:
 		m.err = msg
-		m.nodesState.testing = false
-		m.nodesState.testingTarget = ""
-		m.nodesState.testAllActive = false
-		m.nodesState.testAllPending = nil
-		m.nodesState.testAllRunning = nil
-		m.nodesState.testAllTotal = 0
-		m.nodesState.testAllDone = 0
-		m.nodesState.testPending = 0
+		m.nodesState.Testing = false
+		m.nodesState.TestingTarget = ""
+		m.nodesState.TestAllActive = false
+		m.nodesState.TestAllPending = nil
+		m.nodesState.TestAllRunning = nil
+		m.nodesState.TestAllTotal = 0
+		m.nodesState.TestAllDone = 0
+		m.nodesState.TestPending = 0
 	}
 
 	return m, nil
@@ -247,19 +248,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) dispatchKeyToPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.currentPage {
-	case components.PageNodes:
+	case layout.PageNodes:
 		m.nodesState, cmd = m.nodesState.Update(msg, m.client, m.proxySvc, m.testURL, m.timeout)
 
-	case components.PageConnections:
+	case layout.PageConnections:
 		m.connsState, cmd = m.connsState.Update(msg, m.client, m.timeout)
 
-	case components.PageLogs:
+	case layout.PageLogs:
 		m.logsState, cmd = m.logsState.Update(msg)
 
-	case components.PageRules:
+	case layout.PageRules:
 		m.rulesState, cmd = m.rulesState.Update(msg, m.client)
 
-	case components.PageSettings:
+	case layout.PageSettings:
 		var newCfg, proxyAddr = m.config, ""
 		m.settingsState, newCfg, proxyAddr, cmd = m.settingsState.Update(msg, m.config, m.configSvc)
 		m.config = newCfg
@@ -274,13 +275,13 @@ func (m Model) dispatchKeyToPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) onPageChange() tea.Cmd {
 	m.err = nil
 	switch m.currentPage {
-	case components.PageConnections:
+	case layout.PageConnections:
 		m.connsState = m.connsState.ResetPrevConnIDs()
-		return tea.Batch(fetchConnections(m.client), connTick())
-	case components.PageLogs:
+		return tea.Batch(connections.FetchConnections(m.client), connTick())
+	case layout.PageLogs:
 		return logsTick()
-	case components.PageRules:
-		return fetchRules(m.client)
+	case layout.PageRules:
+		return rules.FetchRules(m.client)
 	}
 	return nil
 }
@@ -288,9 +289,11 @@ func (m *Model) onPageChange() tea.Cmd {
 // refreshCurrentPage 刷新当前页面
 func (m *Model) refreshCurrentPage() tea.Cmd {
 	switch m.currentPage {
-	case components.PageNodes:
-		return tea.Batch(fetchGroups(m.client), fetchProxies(m.client))
-	case components.PageSettings:
+	case layout.PageNodes:
+		return tea.Batch(nodes.FetchGroups(m.client), nodes.FetchProxies(m.client))
+	case layout.PageRules:
+		return rules.FetchRules(m.client)
+	case layout.PageSettings:
 		cfg, _ := m.configSvc.LoadConfig()
 		m.config = cfg
 	}
@@ -299,16 +302,16 @@ func (m *Model) refreshCurrentPage() tea.Cmd {
 
 // handleMouseScroll 处理鼠标滚轮滚动
 func (m Model) handleMouseScroll(up bool, x, y int) (tea.Model, tea.Cmd) {
-	if x >= 0 && x < components.SidebarWidth {
+	if x >= 0 && x < layout.SidebarWidth {
 		if up {
-			m.currentPage = (m.currentPage + components.PageCount - 1) % components.PageCount
+			m.currentPage = (m.currentPage + layout.PageCount - 1) % layout.PageCount
 		} else {
-			m.currentPage = (m.currentPage + 1) % components.PageCount
+			m.currentPage = (m.currentPage + 1) % layout.PageCount
 		}
 		return m, m.onPageChange()
 	}
 
-	sidebarRenderedWidth := components.SidebarWidth + 1
+	sidebarRenderedWidth := layout.SidebarWidth + 1
 	mainWidth := m.width - sidebarRenderedWidth
 	if mainWidth < common.MinMainWidth {
 		mainWidth = common.MinMainWidth
@@ -318,15 +321,15 @@ func (m Model) handleMouseScroll(up bool, x, y int) (tea.Model, tea.Cmd) {
 	mainHeight := m.height
 
 	switch m.currentPage {
-	case components.PageNodes:
+	case layout.PageNodes:
 		m.nodesState = m.nodesState.HandleMouseScroll(up)
-	case components.PageConnections:
+	case layout.PageConnections:
 		m.connsState = m.connsState.HandleMouseScroll(up, mainX, mainY, mainWidth, mainHeight)
-	case components.PageLogs:
+	case layout.PageLogs:
 		m.logsState = m.logsState.HandleMouseScroll(up)
-	case components.PageRules:
+	case layout.PageRules:
 		m.rulesState = m.rulesState.HandleMouseScroll(up)
-	case components.PageSettings:
+	case layout.PageSettings:
 		m.settingsState = m.settingsState.HandleMouseScroll(up)
 	}
 
@@ -365,7 +368,7 @@ func (m Model) resolveMainPageMouseHit(x, y int) (pageX, pageY, pageWidth, pageH
 		return 0, 0, 0, 0, false
 	}
 
-	sidebarRenderedWidth := components.SidebarWidth + 1
+	sidebarRenderedWidth := layout.SidebarWidth + 1
 	mainWidth := m.width - sidebarRenderedWidth
 	if mainWidth < common.MinMainWidth {
 		mainWidth = common.MinMainWidth
