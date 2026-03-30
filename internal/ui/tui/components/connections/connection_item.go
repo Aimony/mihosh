@@ -55,10 +55,14 @@ func RenderConnectionRow(conn model.Connection, style lipgloss.Style, prefix str
 	}
 	rule = utils.TruncateString(rule, ColWidthRule)
 
-	// 代理链
+	// 代理链（chains 为倒序，反转后用 → 拼接显示完整链路）
 	chain := "DIRECT"
 	if len(conn.Chains) > 0 {
-		chain = conn.Chains[len(conn.Chains)-1]
+		parts := make([]string, len(conn.Chains))
+		for i, c := range conn.Chains {
+			parts[len(conn.Chains)-1-i] = c
+		}
+		chain = strings.Join(parts, " → ")
 	}
 	chain = utils.TruncateString(chain, ColWidthChain)
 
