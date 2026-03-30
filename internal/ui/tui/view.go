@@ -75,12 +75,19 @@ func (m Model) View() string {
 	upper := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainPane)
 
 	// ── 底部状态栏 ──
+	var uploadTotal, downloadTotal int64
+	if m.connsState.connections != nil {
+		uploadTotal = m.connsState.connections.UploadTotal
+		downloadTotal = m.connsState.connections.DownloadTotal
+	}
 	statusBar := components.RenderStatusBar(
 		m.width,
 		m.err,
 		m.nodesState.testing,
 		m.nodesState.testingTarget,
 		m.chartData,
+		uploadTotal,
+		downloadTotal,
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, upper, statusBar)

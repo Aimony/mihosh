@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// RenderStatusBar 渲染底部状态栏（含实时指标）
-func RenderStatusBar(width int, err error, testing bool, testingTarget string, chartData *model.ChartData) string {
+// RenderStatusBar 渲染底部状态栏（含实时指标和累计流量）
+func RenderStatusBar(width int, err error, testing bool, testingTarget string, chartData *model.ChartData, uploadTotal int64, downloadTotal int64) string {
 	// ── 左侧：运行状态 / 错误 ──
 	var status string
 	if err != nil {
@@ -58,18 +58,31 @@ func RenderStatusBar(width int, err error, testing bool, testingTarget string, c
 
 	// ── 右侧：实时指标 ──
 	var metricsStr string
+	dimStyle := lipgloss.NewStyle().Foreground(styles.ColorGray)
+	upStyle := lipgloss.NewStyle().Foreground(styles.ColorSuccess)
+	downStyle := lipgloss.NewStyle().Foreground(styles.ColorPrimary)
+
 	if chartData != nil {
 		mem := lastValue(chartData.MemoryHistory)
 		upSpeed := lastValue(chartData.SpeedUpHistory)
 		downSpeed := lastValue(chartData.SpeedDownHistory)
 
-		metricsStyle := lipgloss.NewStyle().Foreground(styles.ColorGray)
-		upStyle := lipgloss.NewStyle().Foreground(styles.ColorSuccess)
-		downStyle := lipgloss.NewStyle().Foreground(styles.ColorPrimary)
-
-		metricsStr = metricsStyle.Render(fmt.Sprintf("MEM %s", utils.FormatBytes(mem))) +
+		metricsStr = dimStyle.Render(fmt.Sprintf("MEM %s", utils.FormatBytes(mem))) +
 			"  " + upStyle.Render(fmt.Sprintf("↑%s/s", utils.FormatBytes(upSpeed))) +
 			"  " + downStyle.Render(fmt.Sprintf("↓%s/s", utils.FormatBytes(downSpeed)))
+	}
+
+	// ── 总流量 ──
+	if uploadTotal > 0 || downloadTotal > 0 {
+		sep := dimStyle.Render("  │  ")
+		totalStr := dimStyle.Render("总流量:") +
+			"  " + upStyle.Render(fmt.Sprintf("↑%s", utils.FormatBytes(uploadTotal))) +
+			"  " + downStyle.Render(fmt.Sprintf("↓%s", utils.FormatBytes(downloadTotal)))
+		if metricsStr != "" {
+			metricsStr = metricsStr + sep + totalStr
+		} else {
+			metricsStr = totalStr
+		}
 	}
 
 	// ── 分隔线 ──
