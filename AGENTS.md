@@ -421,6 +421,52 @@ func (s *ConnsState) AddClosedConn(conn model.Connection) {
 - ✓ 日志记录 (1000 条，按时间) → logs_state.go
 - ✓ 图表数据 (60 个数据点) → model.ChartData
 
+#### 5.3.3 横向滚动边界约束（§5.3）
+
+**规则**：日志页面水平滚动必须设置上限，禁止无限滚动导致 TUI 布局溢出
+
+**问题**：用户持续按住右方向键时，`logHScrollOffset` 无上限递增，导致渲染内容超出 TUI 可视区域
+
+**解决方案**：
+```go
+// 在 State 中增加 maxHScrollOffset 字段
+type State struct {
+    logHScrollOffset   int
+    maxHScrollOffset  int  // 新增：动态计算的最大滚动上限
+}
+
+// 在 UpdateMaxHScrollOffset 中根据页面宽度动态计算上限
+func (s State) UpdateMaxHScrollOffset(width, height int) State {
+    sidebarRenderedWidth := 19
+    pageWidth := width - sidebarRenderedWidth - 2
+    fixedOverhead := 8 + 1 + 20
+    maxOffset := pageWidth - fixedOverhead - 20
+    if maxOffset < 0 {
+        maxOffset = 0
+    }
+    s.maxHScrollOffset = maxOffset
+    if s.logHScrollOffset > s.maxHScrollOffset {
+        s.logHScrollOffset = s.maxHScrollOffset
+    }
+    return s
+}
+
+// Right 键处理器增加边界检查
+case key.Matches(msg, common.Keys.Right):
+    if s.logHScrollOffset < s.maxHScrollOffset {
+        s.logHScrollOffset += 10
+        if s.logHScrollOffset > s.maxHScrollOffset {
+            s.logHScrollOffset = s.maxHScrollOffset
+        }
+    }
+```
+
+**触发时机**：
+- 窗口大小变化时（`tea.WindowSizeMsg`）
+- 初始页面加载时
+
+**最大列宽计算公式**：`maxOffset = pageWidth - 29`，其中 29 是日志前缀（时间戳 + 级别 + 边距）的固定宽度
+
 **新增固定记录的规范**：
 ```go
 // ✓ 规范：定义容量常量 + 环形数组
@@ -525,7 +571,7 @@ go func() {  // 冗余代码！
 |------|---------|---------|---------|
 | **Nodes (节点)** | features/nodes/state.go | features/nodes/view.go | 策略组/节点管理、并发测速 |
 | **Connections (连接)** | features/connections/state.go | features/connections/view.go | 活跃连接监控、Ring Buffer 历史 |
-| **Logs (日志)** | features/logs/state.go | features/logs/view.go | 实时日志流、Ring Buffer 缓存 |
+| **Logs (日志)** | features/logs/state.go | features/logs/view.go | 实时日志流、Ring Buffer 缓存、水平滚动边界保护 |
 | **Rules (规则)** | features/rules/state.go | features/rules/view.go | 规则查询与过滤 |
 | **Settings (设置)** | features/settings/state.go | features/settings/view.go | UI 交互式配置编辑 |
 

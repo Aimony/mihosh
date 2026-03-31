@@ -29,6 +29,7 @@ type State struct {
 	selectedLog        int
 	logScrollTop       int
 	logHScrollOffset   int
+	maxHScrollOffset   int
 }
 
 // NewState 初始化日志状态
@@ -123,7 +124,12 @@ func (s State) Update(msg tea.KeyMsg) (State, tea.Cmd) {
 		}
 
 	case key.Matches(msg, common.Keys.Right):
-		s.logHScrollOffset += 10
+		if s.logHScrollOffset < s.maxHScrollOffset {
+			s.logHScrollOffset += 10
+			if s.logHScrollOffset > s.maxHScrollOffset {
+				s.logHScrollOffset = s.maxHScrollOffset
+			}
+		}
 
 	case msg.String() == "<" || msg.String() == ",":
 		if s.logLevel > 0 {
@@ -173,6 +179,25 @@ func (s State) HandleMouseScroll(up bool) State {
 		if s.selectedLog < count-1 {
 			s.selectedLog++
 		}
+	}
+	return s
+}
+
+// UpdateMaxHScrollOffset 根据页面尺寸更新最大水平滚动偏移
+func (s State) UpdateMaxHScrollOffset(width, height int) State {
+	sidebarRenderedWidth := 19
+	pageWidth := width - sidebarRenderedWidth - 2
+	if pageWidth < 1 {
+		pageWidth = 1
+	}
+	fixedOverhead := 8 + 1 + 20
+	maxOffset := pageWidth - fixedOverhead - 20
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	s.maxHScrollOffset = maxOffset
+	if s.logHScrollOffset > s.maxHScrollOffset {
+		s.logHScrollOffset = s.maxHScrollOffset
 	}
 	return s
 }

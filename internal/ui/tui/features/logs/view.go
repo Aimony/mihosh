@@ -174,48 +174,59 @@ func renderLogList(logs []model.LogEntry, selectedIdx, scrollTop, maxLines, widt
 
 // renderLogEntry 渲染单条日志
 func renderLogEntry(log model.LogEntry, selected bool, maxWidth int, hOffset int) string {
-	// 获取日志级别颜色
 	color := logLevelColors[log.Type]
 	if color == "" {
 		color = common.CMuted
 	}
 
-	// 级别标签
 	levelStyle := lipgloss.NewStyle().
 		Foreground(color).
 		Width(logsLevelWidth)
 
-	// 时间
 	timeStr := log.Timestamp.Format("15:04:05")
 	timePart := common.DimStyle.Render(timeStr)
 
-	// 内容
 	contentStyle := lipgloss.NewStyle().Foreground(common.CMuted)
 
-	// 对日志内容进行 URL 解码
 	content := log.Payload
 	if decoded, err := url.QueryUnescape(content); err == nil {
 		content = decoded
 	}
-	if hOffset > 0 && len(content) > hOffset {
-		content = content[hOffset:]
-	} else if hOffset > 0 {
-		content = ""
+
+	usableWidth := maxWidth - logsDefaultPadding
+	if usableWidth < 1 {
+		usableWidth = 1
 	}
-	// 截取显示宽度
-	displayWidth := maxWidth - logsDefaultPadding
-	if displayWidth > 0 && len(content) > displayWidth {
+
+	if hOffset > 0 {
+		contentWidth := 0
+		for i, r := range content {
+			if r > 127 {
+				contentWidth += 2
+			} else {
+				contentWidth++
+			}
+			if contentWidth > hOffset {
+				content = content[i:]
+				break
+			}
+		}
+		if contentWidth <= hOffset {
+			content = ""
+		}
+	}
+
+	displayWidth := usableWidth
+	if len(content) > displayWidth {
 		content = content[:displayWidth]
 	}
 
-	// 构建行
 	line := fmt.Sprintf("%s %s %s",
 		timePart,
 		levelStyle.Render(strings.ToUpper(log.Type)),
 		contentStyle.Render(content),
 	)
 
-	// 选中样式
 	if selected {
 		line = lipgloss.NewStyle().
 			Background(common.CHighlight).

@@ -50,6 +50,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.logsState = m.logsState.UpdateMaxHScrollOffset(m.width, m.height)
 		return m, tea.ClearScreen
 
 	// ── 全局：鼠标事件 ──
