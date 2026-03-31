@@ -26,7 +26,9 @@ type KeyMap struct {
 	Delete    key.Binding
 	Home      key.Binding
 	End       key.Binding
-	Clear     key.Binding
+	Clear        key.Binding
+	LogLevelDown key.Binding
+	LogLevelUp   key.Binding
 }
 
 var Keys = KeyMap{
@@ -121,5 +123,13 @@ var Keys = KeyMap{
 	Clear: key.NewBinding(
 		key.WithKeys("c"),
 		key.WithHelp("c", "清空"),
+	),
+	LogLevelDown: key.NewBinding(
+		key.WithKeys("["),
+		key.WithHelp("[", "级别-"),
+	),
+	LogLevelUp: key.NewBinding(
+		key.WithKeys("]"),
+		key.WithHelp("]", "级别+"),
 	),
 }

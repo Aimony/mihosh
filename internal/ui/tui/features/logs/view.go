@@ -81,7 +81,7 @@ func RenderLogsPage(state PageState) string {
 	sections = append(sections, logList)
 
 	// 统一底部的提示信息
-	helpText := "[↑/↓]选择 [Tab]级别 [/]搜索 [c]清空 [Esc]清除搜索 [r]刷新"
+	helpText := "[↑/↓]选择 [{/}]级别 [/]搜索 [c]清空 [Esc]清除搜索 [r]刷新"
 	mainContent := strings.Join(sections, "\n")
 	contentLines := strings.Count(mainContent, "\n") + 1
 

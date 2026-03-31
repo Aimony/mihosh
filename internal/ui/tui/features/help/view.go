@@ -74,7 +74,7 @@ func RenderHelpPage(width, height int) string {
 	logsKeys := lipgloss.JoinVertical(lipgloss.Left,
 		sectionStyle.Render("📜 日志 [3]"),
 		renderKey("↑/↓ k/j", "选择日志"),
-		renderKey("Tab", "切换日志级别"),
+		renderKey("[/]", "切换日志级别"),
 		renderKey("/", "搜索过滤"),
 		renderKey("c", "清空日志"),
 		renderKey("Esc", "清除搜索"),

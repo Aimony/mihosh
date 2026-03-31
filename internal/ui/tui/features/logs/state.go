@@ -131,7 +131,7 @@ func (s State) Update(msg tea.KeyMsg) (State, tea.Cmd) {
 			}
 		}
 
-	case msg.String() == "<" || msg.String() == ",":
+	case key.Matches(msg, common.Keys.LogLevelDown):
 		if s.logLevel > 0 {
 			s.logLevel--
 			s.updateFilteredLogs()
@@ -139,7 +139,7 @@ func (s State) Update(msg tea.KeyMsg) (State, tea.Cmd) {
 		s.selectedLog = 0
 		s.logScrollTop = 0
 
-	case msg.String() == ">" || msg.String() == ".":
+	case key.Matches(msg, common.Keys.LogLevelUp):
 		if s.logLevel < 4 {
 			s.logLevel++
 			s.updateFilteredLogs()
