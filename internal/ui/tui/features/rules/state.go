@@ -18,6 +18,9 @@ type State struct {
 	ruleFilterMode      bool
 	selectedRule        int
 	ruleScrollTop       int
+
+	ColorAdjustLight float64 // 0.2-0.4 建议明度增加比例
+	ColorAdjustDark  float64 // 0.15-0.25 建议明度降低比例
 }
 
 // ToPageState 转换为渲染层所需的 PageState
@@ -31,6 +34,8 @@ func (s State) ToPageState(width, height int) PageState {
 		ScrollTop:           s.ruleScrollTop,
 		Width:               width,
 		Height:              height,
+		ColorAdjustLight:    s.ColorAdjustLight,
+		ColorAdjustDark:    s.ColorAdjustDark,
 	}
 }
 

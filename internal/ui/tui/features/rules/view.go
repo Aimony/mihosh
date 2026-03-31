@@ -6,13 +6,20 @@ import (
 
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
+	"github.com/aimony/mihosh/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 )
 
 const (
-	rulesFixedLines  = 6
-	rulesMinHeight   = 5
-	rulesScrollWidth = 2
+	rulesFixedLines    = 6
+	rulesMinHeight     = 5
+	rulesScrollWidth   = 2
+	colorAnimationMs   = 250
+)
+
+var (
+	domainColorKey         = "Domain"
+	domainSuffixColorKey  = "DomainSuffix"
 )
 
 // 规则类型颜色
@@ -56,6 +63,8 @@ type PageState struct {
 	ScrollTop           int          // 滚动偏移
 	Width               int          // 页面宽度
 	Height              int          // 页面高度
+	ColorAdjustLight    float64      // 较浅色调明度增加比例
+	ColorAdjustDark     float64      // 较深色调明度降低比例
 }
 
 // RenderRulesPage 渲染规则页面
@@ -89,8 +98,8 @@ func RenderRulesPage(state PageState) string {
 		availableHeight = rulesMinHeight
 	}
 
-	// 渲染规则列表
-	ruleList := renderRuleList(filteredRules, state.SelectedRule, state.ScrollTop, availableHeight, state.Width)
+	// 渲染规则列表（传入颜色调整参数）
+	ruleList := renderRuleList(filteredRules, state.SelectedRule, state.ScrollTop, availableHeight, state.Width, state.ColorAdjustLight, state.ColorAdjustDark)
 	sections = append(sections, ruleList)
 
 	// 统一底部的提示信息
@@ -122,10 +131,13 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 }
 
 // renderRuleList 渲染规则列表（含整体垂直滚动条）
-func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int) string {
+func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, width int, colorAdjustLight, colorAdjustDark float64) string {
 	if len(rules) == 0 {
 		return common.MutedStyle.Render("暂无规则")
 	}
+
+	// 检测 Domain 和 DomainSuffix 是否共享相同颜色，如果是则应用颜色区分
+	adjustedColors := detectAndAdjustDomainColors(colorAdjustLight, colorAdjustDark)
 
 	// 调整滚动位置确保选中项可见
 	if selectedIdx < scrollTop {
@@ -145,7 +157,7 @@ func renderRuleList(rules []filteredRule, selectedIdx, scrollTop, maxLines, widt
 	var lines []string
 	for i := scrollTop; i < endIdx; i++ {
 		fr := rules[i]
-		line := renderRuleEntry(fr.Rule, fr.Index, i == selectedIdx, listWidth)
+		line := renderRuleEntry(fr.Rule, fr.Index, i == selectedIdx, listWidth, adjustedColors)
 		lines = append(lines, line)
 	}
 	listStr := strings.Join(lines, "\n")
@@ -212,12 +224,9 @@ func calcThumbRange(viewHeight, total, scrollTop int) (start, end int) {
 }
 
 // renderRuleEntry 渲染单条规则
-func renderRuleEntry(rule model.Rule, index int, selected bool, width int) string {
-	// 获取规则类型颜色
-	color := ruleTypeColors[rule.Type]
-	if color == "" {
-		color = lipgloss.Color("#CCCCCC")
-	}
+func renderRuleEntry(rule model.Rule, index int, selected bool, width int, adjustedColors map[string]lipgloss.Color) string {
+	// 获取规则类型颜色（可能已被调整）
+	color := getAdjustedRuleTypeColor(rule.Type, adjustedColors)
 
 	// 序号
 	indexStyle := lipgloss.NewStyle().Foreground(common.CSuccess).Width(6)
@@ -256,4 +265,149 @@ func renderRuleEntry(rule model.Rule, index int, selected bool, width int) strin
 	}
 
 	return line
+}
+
+// adjustedRuleColors 存储调整后的规则类型颜色缓存
+var adjustedRuleColors = make(map[string]lipgloss.Color)
+
+// prevColorAdjustLight 上次的轻度调整值（用于检测变化）
+var prevColorAdjustLight float64 = -1
+
+// prevColorAdjustDark 上次的深度调整值（用于检测变化）
+var prevColorAdjustDark float64 = -1
+
+// detectAndAdjustDomainColors 检测 Domain 和 DomainSuffix 是否颜色相同，如果是则调整它们
+func detectAndAdjustDomainColors(colorAdjustLight, colorAdjustDark float64) map[string]lipgloss.Color {
+	// 如果调整参数未设置，使用默认值
+	if colorAdjustLight <= 0 {
+		colorAdjustLight = 0.25
+	}
+	if colorAdjustDark <= 0 {
+		colorAdjustDark = 0.20
+	}
+
+	// 如果参数未变化且已有缓存，直接返回缓存
+	if colorAdjustLight == prevColorAdjustLight && colorAdjustDark == prevColorAdjustDark && len(adjustedRuleColors) > 0 {
+		return adjustedRuleColors
+	}
+
+	// 重置缓存
+	adjustedRuleColors = make(map[string]lipgloss.Color)
+
+	// 检查 Domain 和 DomainSuffix 的基础颜色是否相同
+	domainBaseColor := ruleTypeColors[domainColorKey]
+	domainSuffixBaseColor := ruleTypeColors[domainSuffixColorKey]
+
+	if domainBaseColor == "" || domainSuffixBaseColor == "" {
+		return adjustedRuleColors
+	}
+
+	baseColorHex := string(domainBaseColor)
+	baseColorSuffixHex := string(domainSuffixBaseColor)
+
+	// 如果颜色相同，进行调整
+	if utils.ColorStringsEqual(baseColorHex, baseColorSuffixHex) {
+		// 生成较浅和较深的变体
+		lighterHex, err := utils.LighterColor(baseColorHex, colorAdjustLight)
+		if err == nil {
+			adjustedRuleColors[domainColorKey] = lipgloss.Color(lighterHex)
+		}
+
+		darkerHex, err := utils.DarkerColor(baseColorSuffixHex, colorAdjustDark)
+		if err == nil {
+			adjustedRuleColors[domainSuffixColorKey] = lipgloss.Color(darkerHex)
+		}
+
+		// 同时处理大写格式
+		adjustedRuleColors["DOMAIN"] = adjustedRuleColors[domainColorKey]
+		adjustedRuleColors["DOMAIN-SUFFIX"] = adjustedRuleColors[domainSuffixColorKey]
+	}
+
+	prevColorAdjustLight = colorAdjustLight
+	prevColorAdjustDark = colorAdjustDark
+
+	return adjustedRuleColors
+}
+
+// getAdjustedRuleTypeColor 获取调整后的规则类型颜色
+func getAdjustedRuleTypeColor(ruleType string, adjustedColors map[string]lipgloss.Color) lipgloss.Color {
+	if adjustedColor, ok := adjustedColors[ruleType]; ok {
+		return adjustedColor
+	}
+	if baseColor, ok := ruleTypeColors[ruleType]; ok {
+		return baseColor
+	}
+	return lipgloss.Color("#CCCCCC")
+}
+
+// animateColor 计算平滑过渡动画后的颜色
+func animateColor(from, to lipgloss.Color, progress float64) lipgloss.Color {
+	fromStr := string(from)
+	toStr := string(to)
+
+	if fromStr == toStr {
+		return from
+	}
+
+	fromHex := strings.TrimPrefix(fromStr, "#")
+	toHex := strings.TrimPrefix(toStr, "#")
+
+	if len(fromHex) != 6 || len(toHex) != 6 {
+		return to
+	}
+
+	fromR := hexToInt(fromHex[0:2])
+	fromG := hexToInt(fromHex[2:4])
+	fromB := hexToInt(fromHex[4:6])
+
+	toR := hexToInt(toHex[0:2])
+	toG := hexToInt(toHex[2:4])
+	toB := hexToInt(toHex[4:6])
+
+	newR := int(float64(fromR) + float64(toR-fromR)*progress)
+	newG := int(float64(fromG) + float64(toG-fromG)*progress)
+	newB := int(float64(fromB) + float64(toB-fromB)*progress)
+
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", newR, newG, newB))
+}
+
+// hexToInt 将十六进制字符串转换为整数
+func hexToInt(s string) int {
+	var val int
+	for _, c := range s {
+		val *= 16
+		switch {
+		case c >= '0' && c <= '9':
+			val += int(c - '0')
+		case c >= 'A' && c <= 'F':
+			val += int(c - 'A' + 10)
+		case c >= 'a' && c <= 'f':
+			val += int(c - 'a' + 10)
+		}
+	}
+	return val
+}
+
+// interpolateColor 在两个颜色之间进行线性插值
+func interpolateColor(color1, color2 string, t float64) string {
+	c1 := strings.TrimPrefix(color1, "#")
+	c2 := strings.TrimPrefix(color2, "#")
+
+	if len(c1) != 6 || len(c2) != 6 {
+		return color2
+	}
+
+	r1 := hexToInt(c1[0:2])
+	g1 := hexToInt(c1[2:4])
+	b1 := hexToInt(c1[4:6])
+
+	r2 := hexToInt(c2[0:2])
+	g2 := hexToInt(c2[2:4])
+	b2 := hexToInt(c2[4:6])
+
+	r := int(float64(r1) + float64(r2-r1)*t)
+	g := int(float64(g1) + float64(g2-g1)*t)
+	b := int(float64(b1) + float64(b2-b1)*t)
+
+	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
 }
