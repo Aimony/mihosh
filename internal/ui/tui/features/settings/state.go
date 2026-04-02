@@ -1,16 +1,20 @@
 package settings
 
 import (
-	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
+	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"time"
 )
 
 const (
 	asciiMinPrintable = 32
 	asciiMaxPrintable = 127
+
+	settingsMouseRowsOffset      = 4
+	settingsDoubleClickThreshold = 350 * time.Millisecond
 )
 
 // State 设置页面完整状态
@@ -19,6 +23,9 @@ type State struct {
 	editMode        bool
 	editValue       string
 	editCursor      int
+
+	lastMouseSetting int
+	lastMouseAt      time.Time
 }
 
 // ToPageState 转换为渲染层所需的 PageState
@@ -68,6 +75,35 @@ func (s State) HandleMouseScroll(up bool) State {
 			s.selectedSetting++
 		}
 	}
+	return s
+}
+
+// HandleMouseLeft 处理 settings 页面左键单击/双击
+func (s State) HandleMouseLeft(pageY int, cfg *config.Config) State {
+	settingIdx := resolveMouseSettingIndex(pageY)
+
+	// 编辑模式下点击空白处退出编辑
+	if s.editMode {
+		if settingIdx < 0 || settingIdx >= len(SettingKeys) {
+			s.editMode = false
+			s.editValue = ""
+			s.editCursor = 0
+		}
+		return s
+	}
+
+	if settingIdx < 0 || settingIdx >= len(SettingKeys) {
+		return s
+	}
+
+	s.selectedSetting = settingIdx
+	now := time.Now()
+	if s.isMouseDoubleClick(settingIdx, now) {
+		s.editMode = true
+		s.editValue = GetSettingValue(cfg, settingIdx)
+		s.editCursor = len(s.editValue)
+	}
+
 	return s
 }
 
@@ -127,4 +163,23 @@ func (s State) handleEditMode(msg tea.KeyMsg, cfg *config.Config, configSvc *ser
 	}
 
 	return s, cfg, "", nil
+}
+
+func resolveMouseSettingIndex(pageY int) int {
+	settingIdx := pageY - settingsMouseRowsOffset
+	if settingIdx < 0 || settingIdx >= len(SettingKeys) {
+		return -1
+	}
+	return settingIdx
+}
+
+func (s *State) isMouseDoubleClick(settingIdx int, now time.Time) bool {
+	isDoubleClick := s.lastMouseSetting == settingIdx &&
+		!s.lastMouseAt.IsZero() &&
+		now.Sub(s.lastMouseAt) <= settingsDoubleClickThreshold
+
+	s.lastMouseSetting = settingIdx
+	s.lastMouseAt = now
+
+	return isDoubleClick
 }

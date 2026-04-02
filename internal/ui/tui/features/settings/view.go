@@ -158,7 +158,7 @@ func RenderSettingsPage(state PageState, width, height int) string {
 	if state.EditMode {
 		helpText = common.MutedStyle.Render("[Enter]保存 [Esc]取消")
 	} else {
-		helpText = common.MutedStyle.Render("[↑/↓]选择 [Enter]编辑")
+		helpText = common.MutedStyle.Render("[↑/↓]选择 [Enter/双击]编辑")
 	}
 
 	mainContent := lipgloss.JoinVertical(

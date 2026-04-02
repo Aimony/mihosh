@@ -76,6 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentPage == layout.PageConnections {
 				return m.handleConnectionsMouseLeft(msg.X, msg.Y)
 			}
+			if m.currentPage == layout.PageSettings {
+				return m.handleSettingsMouseLeft(msg.X, msg.Y)
+			}
 		case isMouseWheelUp(msg):
 			return m.handleMouseScroll(true, msg.X, msg.Y)
 		case isMouseWheelDown(msg):
@@ -357,6 +360,16 @@ func (m Model) handleConnectionsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.connsState, cmd = m.connsState.HandleMouseLeft(pageX, pageY, pageWidth, pageHeight, m.chartData, m.timeout)
 	return m, cmd
+}
+
+func (m Model) handleSettingsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
+	_, pageY, _, _, ok := m.resolveMainPageMouseHit(x, y)
+	if !ok {
+		return m, nil
+	}
+
+	m.settingsState = m.settingsState.HandleMouseLeft(pageY, m.config)
+	return m, nil
 }
 
 func (m Model) resolveMainPageMouseHit(x, y int) (pageX, pageY, pageWidth, pageHeight int, ok bool) {
