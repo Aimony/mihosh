@@ -65,6 +65,13 @@ type PageState struct {
 	Height              int          // 页面高度
 	ColorAdjustLight    float64      // 较浅色调明度增加比例
 	ColorAdjustDark     float64      // 较深色调明度降低比例
+
+	// 类型筛选弹窗状态
+	ShowTypeFilter   bool     // 是否显示类型筛选弹窗
+	TypeFilterSearch string   // 类型搜索文本
+	SelectedTypes    []string // 已选择的规则类型
+	AvailableTypes   []string // 可用规则类型列表
+	TypeFilterCursor int      // 光标位置
 }
 
 // RenderRulesPage 渲染规则页面
@@ -72,7 +79,7 @@ func RenderRulesPage(state PageState) string {
 	var sections []string
 
 	// 渲染搜索框
-	searchBox := renderRuleSearchBox(state.FilterText, state.FilterMode)
+	searchBox := renderRuleSearchBox(state.FilterText, state.FilterMode, state.SelectedTypes)
 	sections = append(sections, searchBox)
 	sections = append(sections, "")
 
@@ -86,7 +93,7 @@ func RenderRulesPage(state PageState) string {
 
 	// 渲染统计信息
 	stats := fmt.Sprintf("共 %d 条规则", len(filteredRules))
-	if state.FilterText != "" {
+	if state.FilterText != "" || len(state.SelectedTypes) > 0 {
 		stats += fmt.Sprintf(" (过滤自 %d 条)", len(state.Rules))
 	}
 	sections = append(sections, common.MutedStyle.Render(stats))
@@ -103,16 +110,23 @@ func RenderRulesPage(state PageState) string {
 	sections = append(sections, ruleList)
 
 	// 统一底部的提示信息
-	helpText := "[↑/↓]选择 [/]搜索 [Esc]清除搜索 [r]刷新"
+	helpText := "[↑/↓]选择 [/]搜索 [t]类型筛选 [Esc]清除 [r]刷新"
 	mainContent := strings.Join(sections, "\n")
 	contentLines := strings.Count(mainContent, "\n") + 1
 
 	footer := common.RenderFooter(state.Width, state.Height, contentLines, helpText)
-	return mainContent + footer
+	result := mainContent + footer
+
+	// 如果显示类型筛选弹窗，叠加在页面之上
+	if state.ShowTypeFilter {
+		return renderTypeFilterOverlay(result, state, state.Width, state.Height)
+	}
+
+	return result
 }
 
 // renderRuleSearchBox 渲染搜索框
-func renderRuleSearchBox(filterText string, filterMode bool) string {
+func renderRuleSearchBox(filterText string, filterMode bool, selectedTypes []string) string {
 	inputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
 
 	if filterMode {
@@ -127,6 +141,13 @@ func renderRuleSearchBox(filterText string, filterMode bool) string {
 	}
 
 	hint := common.MutedStyle.Render(" (多个关键词用空格分隔)")
+	if len(selectedTypes) > 0 {
+		typeNames := strings.Join(selectedTypes, ", ")
+		typeIndicator := lipgloss.NewStyle().
+			Foreground(common.CSuccess).
+			Render(fmt.Sprintf(" [%s]", typeNames))
+		return label + input + hint + typeIndicator
+	}
 	return label + input + hint
 }
 
@@ -410,4 +431,155 @@ func interpolateColor(color1, color2 string, t float64) string {
 	b := int(float64(b1) + float64(b2-b1)*t)
 
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
+}
+
+// renderTypeFilterOverlay 渲染类型筛选弹窗叠加层
+func renderTypeFilterOverlay(background string, state PageState, width, height int) string {
+	// 根据搜索文本过滤可用类型
+	var filteredTypes []string
+	if state.TypeFilterSearch == "" {
+		filteredTypes = state.AvailableTypes
+	} else {
+		search := strings.ToLower(state.TypeFilterSearch)
+		for _, t := range state.AvailableTypes {
+			if strings.Contains(strings.ToLower(t), search) {
+				filteredTypes = append(filteredTypes, t)
+			}
+		}
+	}
+
+	// 弹窗尺寸
+	modalWidth := 50
+	if modalWidth > width-4 {
+		modalWidth = width - 4
+	}
+	modalHeight := 20
+	if modalHeight > height-6 {
+		modalHeight = height - 6
+	}
+
+	// 弹窗样式
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(common.CSecondary).
+		Padding(1, 2).
+		Width(modalWidth)
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(common.CWarning)
+
+	// 标题
+	title := titleStyle.Render("🔍 规则类型筛选")
+
+	// 搜索框
+	searchBoxStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF"))
+	searchText := "搜索: "
+	if state.TypeFilterSearch == "" {
+		searchText += "_"
+	} else {
+		searchText += state.TypeFilterSearch + "█"
+	}
+	searchBox := searchBoxStyle.Render(searchText)
+
+	// 类型列表区域高度
+	listHeight := modalHeight - 6 // 标题 + 搜索框 + 提示
+	if listHeight < 3 {
+		listHeight = 3
+	}
+
+	// 渲染类型列表
+	var typeLines []string
+	visibleStart := 0
+	if state.TypeFilterCursor >= listHeight {
+		visibleStart = state.TypeFilterCursor - listHeight + 1
+	}
+	visibleEnd := visibleStart + listHeight
+	if visibleEnd > len(filteredTypes) {
+		visibleEnd = len(filteredTypes)
+	}
+
+	for i := visibleStart; i < visibleEnd && i < len(filteredTypes); i++ {
+		typeName := filteredTypes[i]
+		isSelected := false
+		for _, st := range state.SelectedTypes {
+			if st == typeName {
+				isSelected = true
+				break
+			}
+		}
+
+		// 获取类型颜色
+		color := getAdjustedRuleTypeColor(typeName, nil)
+
+		// 构建行内容
+		var line string
+		if i == state.TypeFilterCursor {
+			// 当前光标行
+			cursorStyle := lipgloss.NewStyle().
+				Background(common.CHighlight).
+				Foreground(lipgloss.Color("#FFFFFF"))
+			var checkMark string
+			if isSelected {
+				checkMark = lipgloss.NewStyle().Foreground(common.CSuccess).Render("✓ ")
+			} else {
+				checkMark = "  "
+			}
+			typeStyle := lipgloss.NewStyle().Foreground(color).Bold(true)
+			line = cursorStyle.Render(" " + checkMark + typeStyle.Render(typeName) + " ")
+		} else {
+			var checkMark string
+			if isSelected {
+				checkMark = lipgloss.NewStyle().Foreground(common.CSuccess).Render("✓ ")
+			} else {
+				checkMark = "  "
+			}
+			typeStyle := lipgloss.NewStyle().Foreground(color)
+			line = " " + checkMark + typeStyle.Render(typeName)
+		}
+		typeLines = append(typeLines, line)
+	}
+
+	// 填充空行
+	for len(typeLines) < listHeight {
+		typeLines = append(typeLines, "")
+	}
+
+	typeList := strings.Join(typeLines, "\n")
+
+	// 统计信息
+	statsText := fmt.Sprintf("已选 %d/%d 个类型", len(state.SelectedTypes), len(state.AvailableTypes))
+	if state.TypeFilterSearch != "" {
+		statsText += fmt.Sprintf(" (搜索匹配 %d 个)", len(filteredTypes))
+	}
+	stats := common.MutedStyle.Render(statsText)
+
+	// 帮助提示
+	helpText := common.DimStyle.Render("[↑/↓]移动 [Space]选择 [Enter]确认 [Esc]取消")
+
+	// 组装弹窗内容
+	modalContent := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		searchBox,
+		"",
+		typeList,
+		"",
+		stats,
+	)
+
+	modal := modalStyle.Render(modalContent)
+
+	// 使用 Place 实现居中
+	centeredModal := lipgloss.Place(
+		width,
+		height-2, // 为底部帮助留出空间
+		lipgloss.Center,
+		lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Left, modal, "", helpText),
+	)
+
+	// 将弹窗叠加在背景之上
+	return centeredModal
 }
