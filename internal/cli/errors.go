@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (
@@ -74,15 +76,18 @@ func exitCodeForError(err error) int {
 
 func renderCommandError(err error) string {
 	detail := strings.TrimSpace(err.Error())
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("160")).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
 	switch inferErrorKind(err) {
 	case commandErrorParameter:
-		return fmt.Sprintf("参数错误: %s\n使用 --help 查看命令帮助。", detail)
+		return fmt.Sprintf("%s %s\n%s", errorStyle.Render("参数错误:"), detail, hintStyle.Render("使用 --help 查看命令帮助。"))
 	case commandErrorConfig:
-		return fmt.Sprintf("配置错误: %s\n可运行 `mihosh config init` 重新初始化配置。", detail)
+		return fmt.Sprintf("%s %s\n%s", errorStyle.Render("配置错误:"), detail, hintStyle.Render("可运行 `mihosh config init` 重新初始化配置。"))
 	case commandErrorNetwork:
-		return fmt.Sprintf("网络错误: %s\n请检查 API 地址、密钥和网络连通性。", detail)
+		return fmt.Sprintf("%s %s\n%s", errorStyle.Render("网络错误:"), detail, hintStyle.Render("请检查 API 地址、密钥和网络连通性。"))
 	default:
-		return fmt.Sprintf("执行失败: %s", detail)
+		return fmt.Sprintf("%s %s", errorStyle.Render("执行失败:"), detail)
 	}
 }
 

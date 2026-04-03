@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/aimony/mihosh/pkg/utils"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var configCmd = &cobra.Command{
@@ -101,14 +105,157 @@ var configSetCmd = &cobra.Command{
 	},
 }
 
+var configEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "在编辑器中打开配置文件进行编辑",
+	Long: `在编辑器中直接编辑配置文件。
+
+默认会检测环境变量 VISUAL 或 EDITOR，如果未设置，将尝试常用的编辑器。
+修改完成后会验证配置文件的语法。
+
+示例:
+  mihosh config edit
+  mihosh config edit --editor vim`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configDir, err := config.GetConfigDir()
+		if err != nil {
+			return wrapConfigError(fmt.Errorf("获取配置目录失败: %w", err))
+		}
+
+		// 按优先级查找配置文件
+		extensions := []string{".yaml", ".yml", ".json", ".toml"}
+		var configPath string
+		for _, ext := range extensions {
+			path := filepath.Join(configDir, "config"+ext)
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				break
+			}
+		}
+
+		// 如果都不存在，默认使用 config.yaml
+		if configPath == "" {
+			configPath = filepath.Join(configDir, "config.yaml")
+			if _, err := os.Stat(configPath); os.IsNotExist(err) {
+				return wrapConfigError(fmt.Errorf("配置文件不存在: %s\n可运行 `mihosh config init` 重新初始化配置。", configPath))
+			}
+		}
+
+		// 检查文件大小 (限制 1MB)
+		if err := checkConfigFileSize(configPath); err != nil {
+			return wrapConfigError(err)
+		}
+
+		// 确定编辑器
+		editor := configEditEditor
+		if editor == "" {
+			editor = os.Getenv("VISUAL")
+			if editor == "" {
+				editor = os.Getenv("EDITOR")
+			}
+		}
+
+		if editor == "" {
+			editor = detectEditor()
+		}
+
+		if editor == "" {
+			return wrapGeneralError(fmt.Errorf("未找到可用的编辑器，请使用 --editor 指定或设置 EDITOR 环境变量"))
+		}
+
+		// 打开编辑器
+		if err := runEditor(editor, configPath); err != nil {
+			return wrapGeneralError(fmt.Errorf("启动编辑器失败: %w", err))
+		}
+
+		// 验证配置文件语法
+		if err := validateConfigFile(configPath); err != nil {
+			return wrapConfigError(fmt.Errorf("配置文件语法错误: %w", err))
+		}
+
+		successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+		fmt.Println(successStyle.Render("✓ 配置已成功更新并验证。"))
+		return nil
+	},
+}
+
 func init() {
 	configShowCmd.Flags().StringVar(&configShowOutput, "output", string(outputFormatPlain), "输出格式: json|table|plain")
+	configEditCmd.Flags().StringVar(&configEditEditor, "editor", "", "指定编辑器 (例如: code, vim, nano)")
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
+	configCmd.AddCommand(configEditCmd)
 }
 
 var configShowOutput string
+var configEditEditor string
+
+func checkConfigFileSize(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Size() > 1024*1024 {
+		return fmt.Errorf("配置文件过大 (%d 字节)，为了安全起见拒绝打开", info.Size())
+	}
+	return nil
+}
+
+func detectEditor() string {
+	var editors []string
+	if runtime.GOOS == "windows" {
+		editors = []string{"code.cmd", "code", "notepad.exe", "notepad"}
+	} else {
+		editors = []string{"code", "vim", "vi", "nano"}
+	}
+
+	for _, e := range editors {
+		if _, err := exec.LookPath(e); err == nil {
+			return e
+		}
+	}
+	return ""
+}
+
+func runEditor(editor, path string) error {
+	cmd := exec.Command(editor, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func validateConfigFile(path string) error {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".yaml", ".yml":
+		// 使用 viper 验证
+		v := viper.New()
+		v.SetConfigFile(path)
+		v.SetConfigType("yaml")
+		return v.ReadInConfig()
+	case ".json":
+		v := viper.New()
+		v.SetConfigFile(path)
+		v.SetConfigType("json")
+		return v.ReadInConfig()
+	case ".toml":
+		v := viper.New()
+		v.SetConfigFile(path)
+		v.SetConfigType("toml")
+		return v.ReadInConfig()
+	default:
+		return fmt.Errorf("不支持的文件格式: %s", ext)
+	}
+}
+
+func wrapGeneralError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &commandError{kind: commandErrorGeneral, err: err}
+}
 
 func isConfigSetValidationError(err error) bool {
 	msg := strings.TrimSpace(err.Error())

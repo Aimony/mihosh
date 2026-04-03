@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	configpkg "github.com/aimony/mihosh/internal/infrastructure/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRenderConfigShow(t *testing.T) {
@@ -56,4 +58,96 @@ func TestRenderConfigShow(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateConfigFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "mihosh-test-*")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name     string
+		content  string
+		ext      string
+		expected bool
+	}{
+		{
+			name:     "Valid YAML",
+			content:  "api_address: http://localhost:9090\nsecret: token",
+			ext:      ".yaml",
+			expected: true,
+		},
+		{
+			name:     "Invalid YAML",
+			content:  "api_address: : invalid",
+			ext:      ".yaml",
+			expected: false,
+		},
+		{
+			name:     "Valid JSON",
+			content:  `{"api_address": "http://localhost:9090"}`,
+			ext:      ".json",
+			expected: true,
+		},
+		{
+			name:     "Invalid JSON",
+			content:  `{"api_address": "http://localhost:9090"`,
+			ext:      ".json",
+			expected: false,
+		},
+		{
+			name:     "Valid TOML",
+			content:  `api_address = "http://localhost:9090"`,
+			ext:      ".toml",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(tempDir, "config"+tt.ext)
+			err := os.WriteFile(path, []byte(tt.content), 0644)
+			assert.NoError(t, err)
+
+			err = validateConfigFile(path)
+			if tt.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestDetectEditor(t *testing.T) {
+	// This test depends on the environment, so we just check if it returns something or empty
+	// We can't easily mock LookPath here without refactoring the code to use an interface or a function variable
+	editor := detectEditor()
+	// Just ensure it doesn't crash
+	t.Logf("Detected editor: %s", editor)
+}
+
+func TestCheckConfigFileSize(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "mihosh-test-*")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	path := filepath.Join(tempDir, "large-config.yaml")
+	
+	// Create a file slightly larger than 1MB
+	largeData := make([]byte, 1024*1024+1)
+	err = os.WriteFile(path, largeData, 0644)
+	assert.NoError(t, err)
+
+	err = checkConfigFileSize(path)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "配置文件过大")
+
+	// Create a small file
+	smallPath := filepath.Join(tempDir, "small-config.yaml")
+	err = os.WriteFile(smallPath, []byte("api_address: http://localhost:9090"), 0644)
+	assert.NoError(t, err)
+
+	err = checkConfigFileSize(smallPath)
+	assert.NoError(t, err)
 }
