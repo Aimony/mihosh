@@ -48,6 +48,93 @@ func TestConnsHandleMouseLeft_DoubleClickConnectionEntersDetail(t *testing.T) {
 	}
 }
 
+func TestConnsHandleMouseLeft_ClickHistoryTabSwitchesView(t *testing.T) {
+	state := State{
+		Connections:   &model.ConnectionsResponse{},
+		connViewMode:  ConnViewActive,
+		selectedConn:  5,
+		connScrollTop: 3,
+	}
+
+	const width, height = 120, 30
+	x, y, ok := findConnMousePoint(state, width, height, MouseTargetViewHistory, -1)
+	if !ok {
+		t.Fatalf("failed to locate history tab mouse point")
+	}
+
+	next, cmd := state.HandleMouseLeft(x, y, width, height, nil, 3000)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when switching view tab")
+	}
+	if next.connViewMode != ConnViewHistory {
+		t.Fatalf("expected history view mode, got %d", next.connViewMode)
+	}
+	if next.selectedConn != 0 || next.connScrollTop != 0 {
+		t.Fatalf("expected selection reset after tab switch, got selected=%d scrollTop=%d", next.selectedConn, next.connScrollTop)
+	}
+}
+
+func TestConnsHandleMouseLeft_ClickActiveTabSwitchesView(t *testing.T) {
+	state := State{
+		Connections:  &model.ConnectionsResponse{},
+		connViewMode: ConnViewHistory,
+	}
+	state.appendClosed(model.Connection{ID: "closed-1", Metadata: model.Metadata{Host: "closed.example"}})
+
+	const width, height = 120, 30
+	x, y, ok := findConnMousePoint(state, width, height, MouseTargetViewActive, -1)
+	if !ok {
+		t.Fatalf("failed to locate active tab mouse point")
+	}
+
+	next, cmd := state.HandleMouseLeft(x, y, width, height, nil, 3000)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when switching view tab")
+	}
+	if next.connViewMode != ConnViewActive {
+		t.Fatalf("expected active view mode, got %d", next.connViewMode)
+	}
+}
+
+func TestConnsHandleMouseLeft_DoubleClickHistoryConnectionEntersDetail(t *testing.T) {
+	state := State{
+		Connections:  &model.ConnectionsResponse{},
+		connViewMode: ConnViewHistory,
+	}
+	state.appendClosed(model.Connection{
+		ID: "closed-1",
+		Metadata: model.Metadata{
+			Host:          "closed.example.com",
+			DestinationIP: "8.8.8.8",
+		},
+	})
+
+	const width, height = 120, 30
+	x, y, ok := findConnMousePoint(state, width, height, MouseTargetConnection, 0)
+	if !ok {
+		t.Fatalf("failed to locate first history connection row mouse point")
+	}
+
+	next, cmd := state.HandleMouseLeft(x, y, width, height, nil, 3000)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd on first history click, got non-nil")
+	}
+	if next.connDetailMode {
+		t.Fatalf("expected detail mode disabled on first history click")
+	}
+
+	next, cmd = next.HandleMouseLeft(x, y, width, height, nil, 3000)
+	if cmd == nil {
+		t.Fatalf("expected non-nil cmd on history connection double click")
+	}
+	if !next.connDetailMode {
+		t.Fatalf("expected detail mode enabled after history double click")
+	}
+	if next.connDetailSnapshot == nil || next.connDetailSnapshot.ID != "closed-1" {
+		t.Fatalf("expected detail snapshot for closed-1, got %#v", next.connDetailSnapshot)
+	}
+}
+
 func TestConnsHandleMouseLeft_DoubleClickSiteTestTriggersSiteProbe(t *testing.T) {
 	state := State{
 		Connections: &model.ConnectionsResponse{},
@@ -174,9 +261,13 @@ func findConnMousePoint(
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			hit := ResolveMouseHit(pageState, x, y)
-			if hit.Target == target && hit.Index == index {
-				return x, y, true
+			if hit.Target != target {
+				continue
 			}
+			if index >= 0 && hit.Index != index {
+				continue
+			}
+			return x, y, true
 		}
 	}
 	return 0, 0, false

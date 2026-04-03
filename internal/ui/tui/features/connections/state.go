@@ -181,12 +181,7 @@ func (s State) Update(msg tea.KeyMsg, client *api.Client, timeout int) (State, t
 		s.connFilterMode = true
 
 	case msg.String() == "h":
-		s.connViewMode = (s.connViewMode + 1) % 2
-		if s.connViewMode > ConnViewHistory {
-			s.connViewMode = ConnViewActive
-		}
-		s.selectedConn = 0
-		s.connScrollTop = 0
+		s.setConnViewMode((s.connViewMode + 1) % 2)
 
 	case msg.String() == "s":
 		return s.triggerSiteTestByIndex(s.selectedSiteTest, timeout)
@@ -259,6 +254,14 @@ func (s State) HandleMouseLeft(
 	now := time.Now()
 
 	switch hit.Target {
+	case MouseTargetViewActive:
+		s.setConnViewMode(ConnViewActive)
+		return s, nil
+
+	case MouseTargetViewHistory:
+		s.setConnViewMode(ConnViewHistory)
+		return s, nil
+
 	case MouseTargetConnection:
 		if hit.Index < 0 {
 			return s, nil
@@ -482,6 +485,15 @@ func (s *State) closeConnectionDetail() {
 	s.connDetailLeftScroll = 0
 	s.connDetailRightScroll = 0
 	s.connDetailFocusPanel = 0
+}
+
+func (s *State) setConnViewMode(mode int) {
+	if mode < ConnViewActive || mode > ConnViewHistory {
+		mode = ConnViewActive
+	}
+	s.connViewMode = mode
+	s.selectedConn = 0
+	s.connScrollTop = 0
 }
 
 // handleConnFilterMode 连接过滤输入模式

@@ -15,6 +15,9 @@ const (
 	connectionsSiteCardMaxWidth  = 20
 	connectionsSiteLayoutColumns = 4
 	connectionsSiteCardOuterPad  = 3
+	connectionsHeaderTitle       = "连接监控"
+	connectionsHeaderGapWidth    = 2
+	connectionsTabsGapWidth      = 2
 )
 
 // MouseTarget 表示 connections 页面鼠标命中的组件
@@ -24,6 +27,8 @@ const (
 	ConnectionsMouseTargetNone MouseTarget = iota
 	MouseTargetConnection
 	MouseTargetSiteTest
+	MouseTargetViewActive
+	MouseTargetViewHistory
 )
 
 // MouseHit 是 connections 页面鼠标命中结果
@@ -42,6 +47,9 @@ type connectionsListWindow struct {
 func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
 	if pageX < 0 || pageY < 0 {
 		return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
+	}
+	if hit, ok := resolveViewModeHit(state, pageX, pageY); ok {
+		return hit
 	}
 	if state.ViewMode == 0 && state.Connections == nil {
 		return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
@@ -94,6 +102,38 @@ func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
 	}
 
 	return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
+}
+
+func resolveViewModeHit(state PageState, pageX, pageY int) (MouseHit, bool) {
+	if pageY != 0 {
+		return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}, false
+	}
+
+	activeLabel, historyLabel := connectionTabLabels(state.ViewMode)
+	activeStart := lipgloss.Width(connectionsHeaderTitle) + connectionsHeaderGapWidth
+	activeEnd := activeStart + lipgloss.Width(activeLabel)
+	historyStart := activeEnd + connectionsTabsGapWidth
+	historyEnd := historyStart + lipgloss.Width(historyLabel)
+
+	if pageX >= activeStart && pageX < activeEnd {
+		return MouseHit{Target: MouseTargetViewActive, Index: -1}, true
+	}
+	if pageX >= historyStart && pageX < historyEnd {
+		return MouseHit{Target: MouseTargetViewHistory, Index: -1}, true
+	}
+
+	return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}, false
+}
+
+func connectionTabLabels(viewMode int) (activeLabel, historyLabel string) {
+	activeLabel = "活跃连接"
+	historyLabel = "历史连接"
+	if viewMode == ConnViewActive {
+		activeLabel = "● " + activeLabel
+	} else {
+		historyLabel = "● " + historyLabel
+	}
+	return activeLabel, historyLabel
 }
 
 func resolveSiteTestMouseHit(state PageState, pageX int, siteSectionY int) int {

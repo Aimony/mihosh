@@ -54,6 +54,37 @@ func TestResolveConnectionsMouseHit_FindsSiteAndConnectionTargets(t *testing.T) 
 	}
 }
 
+func TestResolveConnectionsMouseHit_FindsViewModeTabs(t *testing.T) {
+	state := PageState{
+		Connections: &model.ConnectionsResponse{},
+		Width:       120,
+		Height:      30,
+		ViewMode:    ConnViewActive,
+	}
+
+	activeFound := false
+	historyFound := false
+
+	for y := 0; y < state.Height; y++ {
+		for x := 0; x < state.Width; x++ {
+			hit := ResolveMouseHit(state, x, y)
+			if hit.Target == MouseTargetViewActive {
+				activeFound = true
+			}
+			if hit.Target == MouseTargetViewHistory {
+				historyFound = true
+			}
+		}
+	}
+
+	if !activeFound {
+		t.Fatalf("expected to find active-view tab hit")
+	}
+	if !historyFound {
+		t.Fatalf("expected to find history-view tab hit")
+	}
+}
+
 func TestResolveConnectionsMouseHit_WithCharts_AlignsFirstVisibleRow(t *testing.T) {
 	chart := model.NewChartData(60)
 	for i := 0; i < 10; i++ {
