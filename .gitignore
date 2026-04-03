@@ -35,3 +35,4 @@ docs/*
 .gocache/*
 AGENTS_MD_RESEARCH_SUMMARY.md
 *.patch
+.spec-workflow/

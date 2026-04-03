@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/aimony/mihosh/internal/domain/model"
+	"github.com/aimony/mihosh/internal/ui/tui/features/connections/components"
 )
 
 func TestConnsHandleMouseLeft_DoubleClickConnectionEntersDetail(t *testing.T) {
@@ -81,6 +82,84 @@ func TestConnsHandleMouseLeft_DoubleClickSiteTestTriggersSiteProbe(t *testing.T)
 	}
 	if !next.siteTests[1].Testing {
 		t.Fatalf("expected selected site testing state true after double click")
+	}
+}
+
+func TestConnsHandleMouseLeft_ClickOutsideDetailClosesModal(t *testing.T) {
+	state := State{
+		connDetailMode: true,
+		connDetailSnapshot: &model.Connection{
+			ID: "conn-1",
+			Metadata: model.Metadata{
+				Host:          "example.com",
+				DestinationIP: "1.1.1.1",
+			},
+		},
+		connIPInfo:            &model.IPInfo{Country: "TW"},
+		connDetailLeftScroll:  2,
+		connDetailRightScroll: 3,
+		connDetailFocusPanel:  1,
+	}
+
+	const width, height = 120, 30
+	next, cmd := state.HandleMouseLeft(0, height-1, width, height, nil, 3000)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when closing detail by outside click")
+	}
+	if next.connDetailMode {
+		t.Fatalf("expected detail mode closed by outside click")
+	}
+	if next.connDetailSnapshot != nil {
+		t.Fatalf("expected detail snapshot cleared after close")
+	}
+	if next.connIPInfo != nil {
+		t.Fatalf("expected ip info cleared after close")
+	}
+	if next.connDetailLeftScroll != 0 || next.connDetailRightScroll != 0 {
+		t.Fatalf("expected detail scroll reset after close, got left=%d right=%d", next.connDetailLeftScroll, next.connDetailRightScroll)
+	}
+	if next.connDetailFocusPanel != 0 {
+		t.Fatalf("expected detail focus reset after close, got %d", next.connDetailFocusPanel)
+	}
+}
+
+func TestConnsHandleMouseLeft_ClickInsideDetailKeepsModal(t *testing.T) {
+	state := State{
+		connDetailMode: true,
+		connDetailSnapshot: &model.Connection{
+			ID: "conn-1",
+			Metadata: model.Metadata{
+				Host:          "example.com",
+				DestinationIP: "1.1.1.1",
+			},
+		},
+	}
+
+	const width, height = 120, 30
+	left, top, right, bottom := components.ResolveConnectionDetailModalBounds(
+		state.connDetailSnapshot,
+		state.connIPInfo,
+		width,
+		height,
+		state.connDetailLeftScroll,
+		state.connDetailRightScroll,
+		state.connDetailFocusPanel,
+	)
+	if right <= left || bottom <= top {
+		t.Fatalf("invalid modal bounds: left=%d top=%d right=%d bottom=%d", left, top, right, bottom)
+	}
+	clickX := left
+	clickY := top
+
+	next, cmd := state.HandleMouseLeft(clickX, clickY, width, height, nil, 3000)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when clicking inside detail modal")
+	}
+	if !next.connDetailMode {
+		t.Fatalf("expected detail mode keep open when clicking inside modal")
+	}
+	if next.connDetailSnapshot == nil || next.connDetailSnapshot.ID != "conn-1" {
+		t.Fatalf("expected detail snapshot retained, got %#v", next.connDetailSnapshot)
 	}
 }
 

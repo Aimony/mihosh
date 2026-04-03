@@ -7,6 +7,7 @@ import (
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
+	"github.com/aimony/mihosh/internal/ui/tui/features/connections/components"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -109,12 +110,7 @@ func (s State) Update(msg tea.KeyMsg, client *api.Client, timeout int) (State, t
 	if s.connDetailMode {
 		switch {
 		case key.Matches(msg, common.Keys.Escape), key.Matches(msg, common.Keys.Enter), msg.String() == "q":
-			s.connDetailMode = false
-			s.connDetailSnapshot = nil
-			s.connIPInfo = nil
-			s.connDetailLeftScroll = 0
-			s.connDetailRightScroll = 0
-			s.connDetailFocusPanel = 0
+			s.closeConnectionDetail()
 		case key.Matches(msg, common.Keys.Left), msg.String() == "h":
 			if s.connDetailFocusPanel > 0 {
 				s.connDetailFocusPanel--
@@ -233,7 +229,29 @@ func (s State) HandleMouseLeft(
 	chartData *model.ChartData,
 	timeout int,
 ) (State, tea.Cmd) {
-	if s.connDetailMode || s.connFilterMode {
+	if s.connDetailMode {
+		if s.connDetailSnapshot == nil {
+			s.closeConnectionDetail()
+			return s, nil
+		}
+
+		left, top, right, bottom := components.ResolveConnectionDetailModalBounds(
+			s.connDetailSnapshot,
+			s.connIPInfo,
+			pageWidth,
+			pageHeight,
+			s.connDetailLeftScroll,
+			s.connDetailRightScroll,
+			s.connDetailFocusPanel,
+		)
+		insideModal := pageX >= left && pageX < right && pageY >= top && pageY < bottom
+		if !insideModal {
+			s.closeConnectionDetail()
+		}
+		return s, nil
+	}
+
+	if s.connFilterMode {
 		return s, nil
 	}
 
@@ -455,6 +473,15 @@ func (s State) triggerSiteTestByIndex(idx int, timeout int) (State, tea.Cmd) {
 	site := s.siteTests[idx]
 	s.siteTests[idx].Testing = true
 	return s, TestSiteDelay(s.proxyAddr, site.Name, site.URL, timeout)
+}
+
+func (s *State) closeConnectionDetail() {
+	s.connDetailMode = false
+	s.connDetailSnapshot = nil
+	s.connIPInfo = nil
+	s.connDetailLeftScroll = 0
+	s.connDetailRightScroll = 0
+	s.connDetailFocusPanel = 0
 }
 
 // handleConnFilterMode 连接过滤输入模式
