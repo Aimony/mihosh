@@ -12,6 +12,7 @@ import (
 	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/aimony/mihosh/pkg/utils"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,8 +24,8 @@ var configCmd = &cobra.Command{
 }
 
 var configInitCmd = &cobra.Command{
-	Use:   "init",
-	Short: "初始化配置",
+	Use:     "init",
+	Short:   "初始化配置",
 	Example: `  mihosh config init`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configSvc := service.NewConfigService()
@@ -117,71 +118,72 @@ var configEditCmd = &cobra.Command{
   mihosh config edit
   mihosh config edit --editor vim`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configDir, err := config.GetConfigDir()
+		// 启动选择器 TUI
+		p := tea.NewProgram(initialSelectorModel())
+		m, err := p.Run()
 		if err != nil {
-			return wrapConfigError(fmt.Errorf("获取配置目录失败: %w", err))
+			return fmt.Errorf("选择器运行失败: %w", err)
 		}
 
-		// 按优先级查找配置文件
-		extensions := []string{".yaml", ".yml", ".json", ".toml"}
-		var configPath string
-		for _, ext := range extensions {
-			path := filepath.Join(configDir, "config"+ext)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
+		sel := m.(selectorModel)
+		switch sel.choice {
+		case choiceMihosh:
+			return runMihoshConfigEdit()
+		case choiceMihomo:
+			return runMihomoConfigEdit()
+		default:
+			return nil
 		}
-
-		// 如果都不存在，默认使用 config.yaml
-		if configPath == "" {
-			configPath = filepath.Join(configDir, "config.yaml")
-			if _, err := os.Stat(configPath); os.IsNotExist(err) {
-				return wrapConfigError(fmt.Errorf("配置文件不存在: %s\n可运行 `mihosh config init` 重新初始化配置。", configPath))
-			}
-		}
-
-		// 检查文件大小 (限制 1MB)
-		if err := checkConfigFileSize(configPath); err != nil {
-			return wrapConfigError(err)
-		}
-
-		// 确定编辑器
-		editor := configEditEditor
-		if editor == "" {
-			editor = os.Getenv("VISUAL")
-			if editor == "" {
-				editor = os.Getenv("EDITOR")
-			}
-		}
-
-		if editor == "" {
-			editor = detectEditor()
-		}
-
-		if editor == "" {
-			return wrapGeneralError(fmt.Errorf("未找到可用的编辑器，请使用 --editor 指定或设置 EDITOR 环境变量"))
-		}
-
-		// 打开编辑器
-		if err := runEditor(editor, configPath); err != nil {
-			return wrapGeneralError(fmt.Errorf("启动编辑器失败: %w", err))
-		}
-
-		// 验证配置文件语法
-		if err := validateConfigFile(configPath); err != nil {
-			return wrapConfigError(fmt.Errorf("配置文件语法错误: %w", err))
-		}
-
-		successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
-		fmt.Println(successStyle.Render("✓ 配置已成功更新并验证。"))
-		return nil
 	},
+}
+
+func runMihoshConfigEdit() error {
+	configDir, err := config.GetConfigDir()
+	if err != nil {
+		return wrapConfigError(fmt.Errorf("获取配置目录失败: %w", err))
+	}
+
+	// 按优先级查找配置文件
+	extensions := []string{".yaml", ".yml", ".json", ".toml"}
+	var configPath string
+	for _, ext := range extensions {
+		path := filepath.Join(configDir, "config"+ext)
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+			break
+		}
+	}
+
+	// 如果都不存在，默认使用 config.yaml
+	if configPath == "" {
+		configPath = filepath.Join(configDir, "config.yaml")
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return wrapConfigError(fmt.Errorf("配置文件不存在: %s\n可运行 `mihosh config init` 重新初始化配置。", configPath))
+		}
+	}
+
+	if err := editConfigFileWithEditor(configPath, configEditEditor); err != nil {
+		return classifyConfigEditError(err)
+	}
+	return nil
+}
+
+func runMihomoConfigEdit() error {
+	path, err := resolveAutoMihomoConfigTarget()
+	if err != nil {
+		return wrapConfigError(err)
+	}
+
+	if err := editConfigFileWithEditor(path, configEditEditor); err != nil {
+		return classifyConfigEditError(err)
+	}
+	return nil
 }
 
 func init() {
 	configShowCmd.Flags().StringVar(&configShowOutput, "output", string(outputFormatPlain), "输出格式: json|table|plain")
 	configEditCmd.Flags().StringVar(&configEditEditor, "editor", "", "指定编辑器 (例如: code, vim, nano)")
+	configEditCmd.Flags().StringVar(&configEditPath, "path", "", "指定 Mihomo 配置文件或目录路径")
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
@@ -190,6 +192,9 @@ func init() {
 
 var configShowOutput string
 var configEditEditor string
+var configEditPath string
+var runEditorFn = runEditor
+var detectEditorFn = detectEditor
 
 func checkConfigFileSize(path string) error {
 	info, err := os.Stat(path)
@@ -248,6 +253,81 @@ func validateConfigFile(path string) error {
 	default:
 		return fmt.Errorf("不支持的文件格式: %s", ext)
 	}
+}
+
+func resolveAutoMihomoConfigTarget() (string, error) {
+	if strings.TrimSpace(configEditPath) != "" {
+		return resolveMihomoConfigTarget(configEditPath)
+	}
+	return config.GetMihomoConfigPath()
+}
+
+func resolveMihomoConfigTarget(input string) (string, error) {
+	path := filepath.Clean(strings.TrimSpace(input))
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("指定的 mihomo 配置路径不存在: %s", path)
+	}
+
+	if info.IsDir() {
+		for _, name := range []string{"config.yaml", "config.yml"} {
+			configPath := filepath.Join(path, name)
+			if _, err := os.Stat(configPath); err == nil {
+				return configPath, nil
+			}
+		}
+		return "", fmt.Errorf("目录 %s 下未找到默认配置文件，请确认 `config.yaml` 或 `config.yml` 存在", path)
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".yaml" && ext != ".yml" {
+		return "", fmt.Errorf("不支持的 mihomo 配置文件格式: %s", ext)
+	}
+
+	return path, nil
+}
+
+func editConfigFileWithEditor(path, preferredEditor string) error {
+	if err := checkConfigFileSize(path); err != nil {
+		return err
+	}
+
+	editor := preferredEditor
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+		if editor == "" {
+			editor = os.Getenv("EDITOR")
+		}
+	}
+	if editor == "" {
+		editor = detectEditorFn()
+	}
+	if editor == "" {
+		return fmt.Errorf("未找到可用的编辑器，请使用 --editor 指定或设置 EDITOR 环境变量")
+	}
+
+	if err := runEditorFn(editor, path); err != nil {
+		return fmt.Errorf("启动编辑器失败: %w", err)
+	}
+	if err := validateConfigFile(path); err != nil {
+		return fmt.Errorf("配置文件语法错误: %w", err)
+	}
+
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+	fmt.Println(successStyle.Render("✓ 配置已成功更新并验证。"))
+	return nil
+}
+
+func classifyConfigEditError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	msg := strings.TrimSpace(err.Error())
+	if strings.Contains(msg, "未找到可用的编辑器") || strings.Contains(msg, "启动编辑器失败") {
+		return wrapGeneralError(err)
+	}
+	return wrapConfigError(err)
 }
 
 func wrapGeneralError(err error) error {

@@ -8,6 +8,7 @@ import (
 
 	configpkg "github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderConfigShow(t *testing.T) {
@@ -133,7 +134,7 @@ func TestCheckConfigFileSize(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	path := filepath.Join(tempDir, "large-config.yaml")
-	
+
 	// Create a file slightly larger than 1MB
 	largeData := make([]byte, 1024*1024+1)
 	err = os.WriteFile(path, largeData, 0644)
@@ -150,4 +151,89 @@ func TestCheckConfigFileSize(t *testing.T) {
 
 	err = checkConfigFileSize(smallPath)
 	assert.NoError(t, err)
+}
+
+func TestGetMihomoConfigPath(t *testing.T) {
+	// This test is tricky because it depends on user home and OS
+	// But we can verify it returns an error if nothing is found
+	// or we can mock parts of it.
+	path, err := configpkg.GetMihomoConfigPath()
+	if err != nil {
+		assert.Contains(t, err.Error(), "未找到 mihomo 配置文件")
+	} else {
+		assert.NotEmpty(t, path)
+	}
+}
+
+func TestResolveMihomoConfigTargetAcceptsDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yml")
+	err := os.WriteFile(configPath, []byte("mixed-port: 7890\n"), 0644)
+	assert.NoError(t, err)
+
+	resolved, err := resolveMihomoConfigTarget(tempDir)
+	assert.NoError(t, err)
+	assert.Equal(t, configPath, resolved)
+}
+
+func TestResolveMihomoConfigTargetRejectsDirectoryWithoutDefaultConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	resolved, err := resolveMihomoConfigTarget(tempDir)
+	assert.Error(t, err)
+	assert.Empty(t, resolved)
+	assert.Contains(t, err.Error(), "config.yaml")
+	assert.Contains(t, err.Error(), "config.yml")
+}
+
+func TestEditConfigFileWithEditorUsesExternalEditorAndValidates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	err := os.WriteFile(path, []byte("mixed-port: 7890\n"), 0644)
+	require.NoError(t, err)
+
+	var gotEditor string
+	var gotPath string
+
+	originalRunner := runEditorFn
+	runEditorFn = func(editor, target string) error {
+		gotEditor = editor
+		gotPath = target
+		return os.WriteFile(target, []byte("mixed-port: 7891\nmode: rule\n"), 0644)
+	}
+	t.Cleanup(func() {
+		runEditorFn = originalRunner
+	})
+
+	err = editConfigFileWithEditor(path, "code")
+	require.NoError(t, err)
+	assert.Equal(t, "code", gotEditor)
+	assert.Equal(t, path, gotPath)
+}
+
+func TestRunMihomoConfigEditUsesExternalEditorFlow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	err := os.WriteFile(path, []byte("mixed-port: 7890\n"), 0644)
+	require.NoError(t, err)
+
+	originalPath := configEditPath
+	originalEditor := configEditEditor
+	originalRunner := runEditorFn
+	configEditPath = path
+	configEditEditor = "code"
+
+	called := false
+	runEditorFn = func(editor, target string) error {
+		called = true
+		return nil
+	}
+
+	t.Cleanup(func() {
+		configEditPath = originalPath
+		configEditEditor = originalEditor
+		runEditorFn = originalRunner
+	})
+
+	err = runMihomoConfigEdit()
+	require.NoError(t, err)
+	assert.True(t, called)
 }
