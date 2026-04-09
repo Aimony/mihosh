@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aimony/mihosh/internal/app/service"
+	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/infrastructure/config"
 	"github.com/aimony/mihosh/pkg/utils"
 	tea "github.com/charmbracelet/bubbletea"
@@ -174,11 +175,51 @@ func runMihomoConfigEdit() error {
 		return wrapConfigError(err)
 	}
 
+	// 记录编辑前的文件修改时间
+	beforeInfo, err := os.Stat(path)
+	if err != nil {
+		return wrapConfigError(fmt.Errorf("无法读取配置文件信息: %w", err))
+	}
+	beforeModTime := beforeInfo.ModTime()
+
 	if err := editConfigFileWithEditor(path, configEditEditor); err != nil {
 		return classifyConfigEditError(err)
 	}
+
+	// 检测文件是否被修改
+	afterInfo, err := os.Stat(path)
+	if err != nil {
+		return nil // 编辑成功但无法检测变更，跳过重载
+	}
+	if !afterInfo.ModTime().After(beforeModTime) {
+		return nil // 文件未修改，无需重载
+	}
+
+	// 文件已修改，自动重载 mihomo 核心
+	return reloadMihomoCore(path)
+}
+
+func reloadMihomoCore(configPath string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		fmt.Println(warnStyle.Render("⚠ 无法加载 mihosh 配置，跳过自动重载核心。请手动重启 mihomo。"))
+		return nil
+	}
+
+	client := api.NewClient(cfg)
+	if err := client.ReloadConfig(configPath); err != nil {
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		fmt.Println(warnStyle.Render(fmt.Sprintf("⚠ 自动重载核心失败: %v", err)))
+		fmt.Println(warnStyle.Render("  请手动重启 mihomo 使配置生效。"))
+		return nil
+	}
+
+	reloadStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+	fmt.Println(reloadStyle.Render("✓ 已自动重载 mihomo 核心，新配置已生效。"))
 	return nil
 }
+
 
 func init() {
 	configShowCmd.Flags().StringVar(&configShowOutput, "output", string(outputFormatPlain), "输出格式: json|table|plain")

@@ -173,3 +173,10 @@ func (c *Client) GetRules() (*model.RulesResponse, error) {
 
 	return &resp, nil
 }
+
+// ReloadConfig 通知 mihomo 核心重新加载配置文件
+func (c *Client) ReloadConfig(configPath string) error {
+	payload := map[string]string{"path": configPath}
+	_, err := c.DoRequest("PUT", "/configs?force=true", payload)
+	return err
+}
