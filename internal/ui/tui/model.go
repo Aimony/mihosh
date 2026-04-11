@@ -48,6 +48,9 @@ type Model struct {
 	wsCtx     context.Context
 	wsCancel  context.CancelFunc
 
+	// IP 解析器
+	ipResolver *service.IPResolver
+
 	// 五个页面子状态
 	nodesState    nodes.State
 	connsState    connections.State
@@ -71,6 +74,7 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 
 	wsClient := api.NewWSClient(cfg.APIAddress, cfg.Secret)
 	wsCtx, wsCancel := context.WithCancel(context.Background())
+	ipResolver := service.NewIPResolver()
 
 	return Model{
 		client:        client,
@@ -86,6 +90,7 @@ func NewModel(client *api.Client, testURL string, timeout int) Model {
 		wsMsgChan:     make(chan interface{}, common.WSMsgChanCap),
 		wsCtx:         wsCtx,
 		wsCancel:      wsCancel,
+		ipResolver:    ipResolver,
 		nodesState:    nodes.State{},
 		connsState:    connections.NewState(cfg.ProxyAddress, model.DefaultSiteTests()),
 		logsState:     logs.NewState(),

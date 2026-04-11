@@ -41,10 +41,31 @@ type PageState struct {
 	HScrollOffset      int              // 水平滚动偏移
 	Width              int              // 页面宽度
 	Height             int              // 页面高度
+
+	// 详情弹窗
+	DetailMode          bool
+	DetailLog           *model.LogEntry
+	DetailParsed        *ParsedLog
+	DetailResolved      *model.ResolvedIP
+	DetailSourcePrivate bool
+	DetailScroll        int
 }
 
 // RenderLogsPage 渲染日志页面
 func RenderLogsPage(state PageState) string {
+	// 详情模式：渲染日志详情弹窗
+	if state.DetailMode && state.DetailLog != nil {
+		return renderLogDetailModal(
+			state.DetailLog,
+			state.DetailParsed,
+			state.DetailResolved,
+			state.DetailSourcePrivate,
+			state.Width,
+			state.Height,
+			state.DetailScroll,
+		)
+	}
+
 	var sections []string
 
 	// 渲染日志级别标签栏
@@ -81,7 +102,7 @@ func RenderLogsPage(state PageState) string {
 	sections = append(sections, logList)
 
 	// 统一底部的提示信息
-	helpText := "[↑/↓]选择 [{/}]级别 [/]搜索 [c]清空 [Esc]清除搜索 [r]刷新"
+	helpText := "[↑/↓]选择 [Enter]详情 [{/}]级别 [/]搜索 [c]清空 [Esc]清除搜索 [r]刷新"
 	mainContent := strings.Join(sections, "\n")
 	contentLines := strings.Count(mainContent, "\n") + 1
 

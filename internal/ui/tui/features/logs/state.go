@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aimony/mihosh/internal/app/service"
 	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/ui/tui/components/common"
 	"github.com/charmbracelet/bubbles/key"
@@ -30,6 +31,18 @@ type State struct {
 	logScrollTop       int
 	logHScrollOffset   int
 	maxHScrollOffset   int
+
+	// 详情弹窗
+	detailMode          bool
+	detailLog           *model.LogEntry
+	detailParsed        *ParsedLog
+	detailResolved      *model.ResolvedIP
+	detailSourcePrivate bool
+	detailScroll        int
+
+	// 鼠标双击检测
+	lastClickIndex int
+	lastClickAt    time.Time
 }
 
 // NewState 初始化日志状态
@@ -92,16 +105,30 @@ func (s State) ToPageState(width, height int) PageState {
 		HScrollOffset:      s.logHScrollOffset,
 		Width:              width,
 		Height:             height,
+		DetailMode:          s.detailMode,
+		DetailLog:           s.detailLog,
+		DetailParsed:        s.detailParsed,
+		DetailResolved:      s.detailResolved,
+		DetailSourcePrivate: s.detailSourcePrivate,
+		DetailScroll:        s.detailScroll,
 	}
 }
 
 // Update 处理日志页面按键
-func (s State) Update(msg tea.KeyMsg) (State, tea.Cmd) {
+func (s State) Update(msg tea.KeyMsg, resolver *service.IPResolver) (State, tea.Cmd) {
+	// 详情模式拦截所有按键
+	if s.detailMode {
+		return s.handleDetailMode(msg)
+	}
+
 	if s.logFilterMode {
 		return s.handleLogFilterMode(msg)
 	}
 
 	switch {
+	case key.Matches(msg, common.Keys.Enter):
+		return s.openLogDetail(resolver)
+
 	case key.Matches(msg, common.Keys.Up):
 		if s.selectedLog > 0 {
 			s.selectedLog--
@@ -164,6 +191,112 @@ func (s State) Update(msg tea.KeyMsg) (State, tea.Cmd) {
 
 	return s, nil
 }
+
+// handleDetailMode 详情弹窗按键处理
+func (s State) handleDetailMode(msg tea.KeyMsg) (State, tea.Cmd) {
+	switch {
+	case key.Matches(msg, common.Keys.Escape), key.Matches(msg, common.Keys.Enter), msg.String() == "q":
+		s.detailMode = false
+		s.detailLog = nil
+		s.detailParsed = nil
+		s.detailResolved = nil
+		s.detailSourcePrivate = false
+		s.detailScroll = 0
+	case key.Matches(msg, common.Keys.Up):
+		if s.detailScroll > 0 {
+			s.detailScroll--
+		}
+	case key.Matches(msg, common.Keys.Down):
+		s.detailScroll++
+	}
+	return s, nil
+}
+
+// openLogDetail 打开选中日志的详情弹窗
+func (s State) openLogDetail(resolver *service.IPResolver) (State, tea.Cmd) {
+	entry := s.selectedLogEntry()
+	if entry == nil {
+		return s, nil
+	}
+
+	snapshot := *entry
+	parsed := ParseLogPayload(snapshot.Payload)
+
+	s.detailMode = true
+	s.detailLog = &snapshot
+	s.detailParsed = parsed
+	s.detailResolved = nil
+	s.detailSourcePrivate = false
+	s.detailScroll = 0
+
+	// 如果源IP是内网IP，异步查询应用来源
+	if parsed.SourceIP != "" && service.IsPrivateIP(parsed.SourceIP) {
+		s.detailSourcePrivate = true
+		return s, ResolveLogSourceIP(resolver, parsed.SourceIP)
+	}
+
+	return s, nil
+}
+
+// selectedLogEntry 获取当前选中的日志条目
+func (s State) selectedLogEntry() *model.LogEntry {
+	if s.selectedLog < 0 || s.selectedLog >= len(s.filteredLogIndices) {
+		return nil
+	}
+	logIdx := s.filteredLogIndices[s.selectedLog]
+	allLogs := s.logs()
+	if logIdx < 0 || logIdx >= len(allLogs) {
+		return nil
+	}
+	entry := allLogs[logIdx]
+	return &entry
+}
+
+// ApplyIPResolved 应用异步 IP 解析结果
+func (s State) ApplyIPResolved(ip string, resolved *model.ResolvedIP) State {
+	if s.detailMode && s.detailParsed != nil && s.detailParsed.SourceIP == ip {
+		s.detailResolved = resolved
+	}
+	return s
+}
+
+// HandleMouseLeft 处理日志页面鼠标左键（含双击检测）
+func (s State) HandleMouseLeft(pageY int, resolver *service.IPResolver) (State, tea.Cmd) {
+	if s.detailMode {
+		// 详情模式下点击关闭弹窗
+		s.detailMode = false
+		s.detailLog = nil
+		s.detailParsed = nil
+		s.detailResolved = nil
+		s.detailSourcePrivate = false
+		s.detailScroll = 0
+		return s, nil
+	}
+
+	const headerLines = 6 // levelBar + space + search + space + stats + space
+	clickedIndex := (pageY - headerLines) + s.logScrollTop
+	if clickedIndex < 0 || clickedIndex >= len(s.filteredLogIndices) {
+		return s, nil
+	}
+
+	s.selectedLog = clickedIndex
+
+	// 双击检测
+	now := time.Now()
+	const doubleClickThreshold = 350 * time.Millisecond
+	isDoubleClick := clickedIndex == s.lastClickIndex &&
+		!s.lastClickAt.IsZero() &&
+		now.Sub(s.lastClickAt) <= doubleClickThreshold
+
+	s.lastClickIndex = clickedIndex
+	s.lastClickAt = now
+
+	if isDoubleClick {
+		return s.openLogDetail(resolver)
+	}
+
+	return s, nil
+}
 
 // HandleMouseScroll 鼠标滚轮处理
 func (s State) HandleMouseScroll(up bool) State {

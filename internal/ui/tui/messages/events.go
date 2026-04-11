@@ -81,6 +81,13 @@ type LogsWSMsg struct {
 	Payload string
 }
 
+// ========= Logs Messages =========
+
+type LogIPResolvedMsg struct {
+	IP       string
+	Resolved *model.ResolvedIP
+}
+
 // ========= UI Ticks =========
 
 type ConnTickMsg time.Time

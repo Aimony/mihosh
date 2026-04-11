@@ -79,6 +79,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentPage == layout.PageSettings {
 				return m.handleSettingsMouseLeft(msg.X, msg.Y)
 			}
+			if m.currentPage == layout.PageLogs {
+				return m.handleLogsMouseLeft(msg.X, msg.Y)
+			}
 		case isMouseWheelUp(msg):
 			return m.handleMouseScroll(true, msg.X, msg.Y)
 		case isMouseWheelDown(msg):
@@ -192,6 +195,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, listenWSMessages(m.wsCtx, m.wsMsgChan)
 		}
 
+	case messages.LogIPResolvedMsg:
+		m.logsState = m.logsState.ApplyIPResolved(msg.IP, msg.Resolved)
+
 	case messages.RulesMsg:
 		m.rulesState = m.rulesState.ApplyRules(msg)
 
@@ -259,7 +265,7 @@ func (m Model) dispatchKeyToPage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.connsState, cmd = m.connsState.Update(msg, m.client, m.timeout)
 
 	case layout.PageLogs:
-		m.logsState, cmd = m.logsState.Update(msg)
+		m.logsState, cmd = m.logsState.Update(msg, m.ipResolver)
 
 	case layout.PageRules:
 		m.rulesState, cmd = m.rulesState.Update(msg, m.client)
@@ -370,6 +376,17 @@ func (m Model) handleSettingsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
 
 	m.settingsState = m.settingsState.HandleMouseLeft(pageY, m.config)
 	return m, nil
+}
+
+func (m Model) handleLogsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
+	_, pageY, _, _, ok := m.resolveMainPageMouseHit(x, y)
+	if !ok {
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.logsState, cmd = m.logsState.HandleMouseLeft(pageY, m.ipResolver)
+	return m, cmd
 }
 
 func (m Model) resolveMainPageMouseHit(x, y int) (pageX, pageY, pageWidth, pageHeight int, ok bool) {
