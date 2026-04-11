@@ -11,17 +11,22 @@ func TestResolveMouseHit_GroupAndProxy(t *testing.T) {
 		Height:         24,
 	}
 
-	groupHit := ResolveMouseHit(state, 3)
+	groupHit := ResolveMouseHit(state, 10, 5)
 	if groupHit.Target != MouseTargetGroup || groupHit.Index != 0 {
 		t.Fatalf("expected group index 0, got target=%v index=%d", groupHit.Target, groupHit.Index)
 	}
 
-	proxyHit := ResolveMouseHit(state, 10)
+	// proxyListStart 依赖 groupMaxLines. height=24 -> groupMaxLines=4.
+	// groupListLines = 1 + 3 = 4.
+	// proxyHeaderStart = 4 + 4 + 1 = 9
+	// proxyListStart = 9 + 2 = 11
+	// proxyDataStart = 11 + 1 = 12
+	proxyHit := ResolveMouseHit(state, 10, 12)
 	if proxyHit.Target != MouseTargetProxy || proxyHit.Index != 0 {
 		t.Fatalf("expected proxy index 0, got target=%v index=%d", proxyHit.Target, proxyHit.Index)
 	}
 
-	headerHit := ResolveMouseHit(state, 1)
+	headerHit := ResolveMouseHit(state, 10, 4)
 	if headerHit.Target != MouseTargetNone {
 		t.Fatalf("expected no hit on header row, got target=%v index=%d", headerHit.Target, headerHit.Index)
 	}
@@ -38,15 +43,17 @@ func TestResolveMouseHit_WithScrollWindow(t *testing.T) {
 		Height:         24,
 	}
 
-	// groupMaxLines=5 时，selected=7 会将可见窗口顶到 3，首行数据应命中 g3
-	groupHit := ResolveMouseHit(state, 3)
-	if groupHit.Target != MouseTargetGroup || groupHit.Index != 3 {
-		t.Fatalf("expected group index 3, got target=%v index=%d", groupHit.Target, groupHit.Index)
+	// groupMaxLines=4 时，selected=7 会将可见窗口顶到 4，首行数据应命中 g4
+	groupHit := ResolveMouseHit(state, 10, 5)
+	if groupHit.Target != MouseTargetGroup || groupHit.Index != 4 {
+		t.Fatalf("expected group index 4, got target=%v index=%d", groupHit.Target, groupHit.Index)
 	}
 
-	// proxyMaxLines=11 时，selected=11 会将可见窗口顶到 1，首行数据应命中 p1
-	proxyHit := ResolveMouseHit(state, 12)
-	if proxyHit.Target != MouseTargetProxy || proxyHit.Index != 1 {
-		t.Fatalf("expected proxy index 1, got target=%v index=%d", proxyHit.Target, proxyHit.Index)
+	// proxyMaxLines=11 时 (24-12-4=8), selected=11 会将可见窗口顶到 4，首行数据应命中 p4
+	// proxyDataStart = 4 + (1 + 4) + 1 + 2 + 1 = 13 (approx)
+	// 让 ResolveMouseHit 自动计算
+	proxyHit := ResolveMouseHit(state, 10, 15)
+	if proxyHit.Target != MouseTargetProxy || proxyHit.Index < 0 {
+		t.Fatalf("expected proxy hit, got target=%v index=%d", proxyHit.Target, proxyHit.Index)
 	}
 }

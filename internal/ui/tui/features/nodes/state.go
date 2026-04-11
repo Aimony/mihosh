@@ -456,8 +456,8 @@ func (s *State) isMouseDoubleClick(target MouseTarget, idx int, now time.Time) b
 	return isDoubleClick
 }
 
-// HandleMouseScroll 处理鼠标滚轮（弹窗打开时控制弹窗滚动，否则控制节点列表）
-func (s State) HandleMouseScroll(up bool) State {
+// HandleMouseScroll 处理鼠标滚轮（弹窗打开时控制弹窗滚动，否则根据鼠标位置或焦点控制列表滚动）
+func (s State) HandleMouseScroll(up bool, pageX, pageY, pageWidth, pageHeight int) State {
 	if s.ShowFailureDetail {
 		if up {
 			if s.FailureScrollTop > 0 {
@@ -469,12 +469,38 @@ func (s State) HandleMouseScroll(up bool) State {
 		return s
 	}
 
-	// 暂不支持策略组滚轮选择，保留当前行为仅控制节点列表
-	if s.MouseFocus == nodesMouseFocusGroup {
+	hit := ResolveMouseHit(s.ToPageState(pageWidth, pageHeight), pageX, pageY)
+	groupMaxLines, proxyMaxLines := CalcNodesListMaxLines(pageHeight)
+
+	// 如果鼠标在策略组区域，或鼠标不在任何有效区域但当前焦点是策略组
+	if hit.Target == MouseTargetGroup || (hit.Target == MouseTargetNone && s.MouseFocus == nodesMouseFocusGroup) {
+		if up {
+			if s.SelectedGroup > 0 {
+				s.SelectedGroup--
+				s.updateCurrentProxies()
+				s.SelectedProxy = 0
+				s.ProxyScrollTop = 0
+				if s.SelectedGroup < s.GroupScrollTop {
+					s.GroupScrollTop = s.SelectedGroup
+				}
+			}
+		} else {
+			if s.SelectedGroup < len(s.GroupNames)-1 {
+				s.SelectedGroup++
+				s.updateCurrentProxies()
+				s.SelectedProxy = 0
+				s.ProxyScrollTop = 0
+				if s.SelectedGroup >= s.GroupScrollTop+groupMaxLines {
+					s.GroupScrollTop = s.SelectedGroup - groupMaxLines + 1
+				}
+			}
+		}
 		return s
 	}
 
-	displayCount := len(s.displayProxies())
+	// 否则处理节点列表（鼠标在节点区域，或鼠标不在有效区域且非策略组焦点，默认处理节点列表）
+	display := s.displayProxies()
+	displayCount := len(display)
 	if up {
 		if s.SelectedProxy > 0 {
 			s.SelectedProxy--
@@ -485,6 +511,9 @@ func (s State) HandleMouseScroll(up bool) State {
 	} else {
 		if s.SelectedProxy < displayCount-1 {
 			s.SelectedProxy++
+			if s.SelectedProxy >= s.ProxyScrollTop+proxyMaxLines {
+				s.ProxyScrollTop = s.SelectedProxy - proxyMaxLines + 1
+			}
 		}
 	}
 	return s

@@ -336,7 +336,13 @@ func (m Model) handleMouseScroll(up bool, x, y int) (tea.Model, tea.Cmd) {
 
 	switch m.currentPage {
 	case layout.PageNodes:
-		m.nodesState = m.nodesState.HandleMouseScroll(up)
+		pageX, pageY, pageWidth, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
+		if ok {
+			m.nodesState = m.nodesState.HandleMouseScroll(up, pageX, pageY, pageWidth, pageHeight)
+		} else {
+			// 如果无法解析，则回退到原始调用（不传坐标，虽然 nodesState 也会变）
+			m.nodesState = m.nodesState.HandleMouseScroll(up, -1, -1, m.width, m.height)
+		}
 	case layout.PageConnections:
 		m.connsState = m.connsState.HandleMouseScroll(up, mainX, mainY, mainWidth, mainHeight)
 	case layout.PageLogs:
