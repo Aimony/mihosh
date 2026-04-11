@@ -29,6 +29,9 @@ const (
 	MouseTargetSiteTest
 	MouseTargetViewActive
 	MouseTargetViewHistory
+	MouseTargetChart
+	MouseTargetTopN
+	MouseTargetTopNModalItem
 )
 
 // MouseHit 是 connections 页面鼠标命中结果
@@ -48,6 +51,35 @@ func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
 	if pageX < 0 || pageY < 0 {
 		return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
 	}
+
+	if state.TopNModalMode {
+		left, top, right, bottom := components.ResolveTopNModalBounds(state.TopNModalItems, state.Width, state.Height, state.TopNModalScroll)
+		if pageX >= left && pageX < right && pageY >= top && pageY < bottom {
+			// 点击在弹窗内。
+			// 1(border) + 1(padding) + 2(title area) = 4
+			localY := pageY - top - 4
+			if localY < 0 {
+				return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
+			}
+
+			// 处理向上滚动提示行
+			if state.TopNModalScroll > 0 {
+				if localY == 0 {
+					return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1} // 点击了提示行
+				}
+				localY--
+			}
+
+			if localY >= 0 && localY < len(state.TopNModalItems)-state.TopNModalScroll {
+				return MouseHit{
+					Target: MouseTargetTopNModalItem,
+					Index:  state.TopNModalScroll + localY,
+				}
+			}
+		}
+		return MouseHit{Target: ConnectionsMouseTargetNone, Index: -1}
+	}
+
 	if hit, ok := resolveViewModeHit(state, pageX, pageY); ok {
 		return hit
 	}
@@ -61,7 +93,21 @@ func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
 		if state.ChartData != nil {
 			chartsSection := components.RenderChartsSection(state.ChartData, state.Width)
 			if chartsSection != "" {
-				line += lipgloss.Height(chartsSection) + 1 // 图表区域 + 空行
+				h := lipgloss.Height(chartsSection)
+				if pageY >= line && pageY < line+h {
+					return MouseHit{Target: MouseTargetChart}
+				}
+				line += h + 1 // 图表区域 + 空行
+			}
+		}
+		if len(state.TopNItems) > 0 {
+			topNSection := components.RenderTopNSection(state.TopNItems, state.Width)
+			if topNSection != "" {
+				h := lipgloss.Height(topNSection)
+				if pageY >= line && pageY < line+h {
+					return MouseHit{Target: MouseTargetTopN}
+				}
+				line += h + 1 // TopN 区域 + 空行
 			}
 		}
 		if len(state.SiteTests) > 0 {
@@ -210,6 +256,9 @@ func calcConnectionsMaxDisplay(state PageState) int {
 	if state.ViewMode == 0 {
 		if state.ChartData != nil {
 			usedLines += 6
+		}
+		if len(state.TopNItems) > 0 {
+			usedLines += len(state.TopNItems) + 2
 		}
 		if len(state.SiteTests) > 0 {
 			usedLines += 8

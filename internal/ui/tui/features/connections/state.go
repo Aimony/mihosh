@@ -17,6 +17,8 @@ const (
 	ConnViewHistory = 1
 
 	connsDoubleClickThreshold = 350 * time.Millisecond
+	connsChartDoubleClickMax  = 650 * time.Millisecond
+	connsTopNDefaultCount     = 5
 )
 
 // State 连接页面完整状态
@@ -25,8 +27,9 @@ type State struct {
 	PrevConnIDs map[string]model.Connection
 	// Ring Buffer for closed connections
 	closedConns [common.ClosedConnCap]model.Connection
-	closedHead  int // 写入位置（下一条写入的索引）
-	closedCount int // 已写入的总条数（上限 ClosedConnCap）
+	closedTimes [common.ClosedConnCap]time.Time // 新增：记录关闭时间
+	closedHead  int                             // 写入位置（下一条写入的索引）
+	closedCount int                             // 已写入的总条数（上限 ClosedConnCap）
 
 	selectedConn          int
 	connScrollTop         int
@@ -43,6 +46,8 @@ type State struct {
 	siteTests        []model.SiteTest
 	selectedSiteTest int
 	proxyAddr        string
+	topNModalMode    bool
+	topNModalScroll  int
 
 	lastMouseTarget MouseTarget
 	lastMouseIndex  int
@@ -55,6 +60,64 @@ func NewState(proxyAddr string, siteTests []model.SiteTest) State {
 		proxyAddr: proxyAddr,
 		siteTests: siteTests,
 	}
+}
+
+// CalculateTopN 计算 Top N 吞吐量
+func (s State) CalculateTopN(n int, within time.Duration) []components.TopNItem {
+	stats := make(map[string]int64)
+	now := time.Now()
+
+	// 汇总活跃连接
+	if s.Connections != nil {
+		for _, conn := range s.Connections.Connections {
+			name := conn.Metadata.Process
+			if name == "" {
+				name = conn.Metadata.Host
+			}
+			if name == "" {
+				name = conn.Metadata.DestinationIP
+			}
+			stats[name] += conn.Download + conn.Upload
+		}
+	}
+
+	// 汇总历史连接
+	for i := 0; i < s.closedCount; i++ {
+		idx := (s.closedHead - 1 - i + common.ClosedConnCap) % common.ClosedConnCap
+		closedTime := s.closedTimes[idx]
+		if now.Sub(closedTime) <= within {
+			conn := s.closedConns[idx]
+			name := conn.Metadata.Process
+			if name == "" {
+				name = conn.Metadata.Host
+			}
+			if name == "" {
+				name = conn.Metadata.DestinationIP
+			}
+			stats[name] += conn.Download + conn.Upload
+		}
+	}
+
+	var items []components.TopNItem
+	for k, v := range stats {
+		if k != "" && v > 0 {
+			items = append(items, components.TopNItem{Name: k, TotalBytes: v})
+		}
+	}
+
+	// 排序
+	for i := 0; i < len(items)-1; i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j].TotalBytes > items[i].TotalBytes {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+
+	if n > 0 && len(items) > n {
+		items = items[:n]
+	}
+	return items
 }
 
 // ClosedConnections 返回历史连接（最新在前）
@@ -74,6 +137,7 @@ func (s State) ClosedConnections() []model.Connection {
 // appendClosed 向 Ring Buffer 追加一条历史连接
 func (s *State) appendClosed(conn model.Connection) {
 	s.closedConns[s.closedHead] = conn
+	s.closedTimes[s.closedHead] = time.Now()
 	s.closedHead = (s.closedHead + 1) % common.ClosedConnCap
 	if s.closedCount < common.ClosedConnCap {
 		s.closedCount++
@@ -82,6 +146,12 @@ func (s *State) appendClosed(conn model.Connection) {
 
 // ToPageState 转换为渲染层所需的 PageState
 func (s State) ToPageState(chartData *model.ChartData, width, height int) PageState {
+	topNItems := s.CalculateTopN(connsTopNDefaultCount, 5*time.Minute)
+	var topNModalItems []components.TopNItem
+	if s.topNModalMode {
+		topNModalItems = s.CalculateTopN(0, 5*time.Minute)
+	}
+
 	return PageState{
 		Connections:        s.Connections,
 		Width:              width,
@@ -101,11 +171,29 @@ func (s State) ToPageState(chartData *model.ChartData, width, height int) PageSt
 		ClosedConnections:  s.ClosedConnections(),
 		SiteTests:          s.siteTests,
 		SelectedSiteTest:   s.selectedSiteTest,
+		TopNItems:          topNItems,
+		TopNModalMode:      s.topNModalMode,
+		TopNModalItems:     topNModalItems,
+		TopNModalScroll:    s.topNModalScroll,
 	}
 }
 
 // Update 处理连接页面按键
 func (s State) Update(msg tea.KeyMsg, client *api.Client, timeout int) (State, tea.Cmd) {
+	if s.topNModalMode {
+		switch {
+		case key.Matches(msg, common.Keys.Escape), key.Matches(msg, common.Keys.Enter), msg.String() == "q":
+			s.closeTopNModal()
+		case key.Matches(msg, common.Keys.Up), msg.String() == "k":
+			if s.topNModalScroll > 0 {
+				s.topNModalScroll--
+			}
+		case key.Matches(msg, common.Keys.Down), msg.String() == "j":
+			s.topNModalScroll++
+		}
+		return s, nil
+	}
+
 	// 详情模式
 	if s.connDetailMode {
 		switch {
@@ -246,6 +334,42 @@ func (s State) HandleMouseLeft(
 		return s, nil
 	}
 
+	if s.topNModalMode {
+		// 先尝试 ResolveMouseHit
+		hit := ResolveMouseHit(s.ToPageState(chartData, pageWidth, pageHeight), pageX, pageY)
+		now := time.Now()
+
+		if hit.Target == MouseTargetTopNModalItem {
+			if s.isMouseDoubleClick(MouseTargetTopNModalItem, hit.Index, now) {
+				items := s.CalculateTopN(0, 5*time.Minute)
+				if hit.Index >= 0 && hit.Index < len(items) {
+					item := items[hit.Index]
+					// 查找匹配的连接
+					if conn := s.findConnectionByName(item.Name); conn != nil {
+						// 不要关闭 topNModalMode，详情渲染优先级更高
+						s.connDetailMode = true
+						s.connDetailSnapshot = conn
+						s.connDetailLeftScroll = 0
+						s.connDetailRightScroll = 0
+						s.connDetailFocusPanel = 0
+						s.connIPInfo = nil
+						return s, FetchIPInfo(conn.Metadata.DestinationIP)
+					}
+				}
+			}
+			return s, nil
+		}
+
+		// 点击在弹窗外则关闭
+		items := s.CalculateTopN(0, 5*time.Minute)
+		left, top, right, bottom := components.ResolveTopNModalBounds(items, pageWidth, pageHeight, s.topNModalScroll)
+		insideModal := pageX >= left && pageX < right && pageY >= top && pageY < bottom
+		if !insideModal {
+			s.closeTopNModal()
+		}
+		return s, nil
+	}
+
 	if s.connFilterMode {
 		return s, nil
 	}
@@ -254,6 +378,13 @@ func (s State) HandleMouseLeft(
 	now := time.Now()
 
 	switch hit.Target {
+	case MouseTargetChart, MouseTargetTopN:
+		if s.isMouseDoubleClickWithThreshold(hit.Target, 0, now, connsChartDoubleClickMax) {
+			s.topNModalMode = true
+			s.topNModalScroll = 0
+		}
+		return s, nil
+
 	case MouseTargetViewActive:
 		s.setConnViewMode(ConnViewActive)
 		return s, nil
@@ -291,6 +422,17 @@ func (s State) HandleMouseLeft(
 
 // HandleMouseScroll 鼠标滚轮处理
 func (s State) HandleMouseScroll(up bool, mainX, mainY, mainWidth, mainHeight int) State {
+	if s.topNModalMode {
+		if up {
+			if s.topNModalScroll > 0 {
+				s.topNModalScroll--
+			}
+		} else {
+			s.topNModalScroll++
+		}
+		return s
+	}
+
 	if s.connDetailMode {
 		innerW := mainWidth - 6
 		isRightSide := false
@@ -346,10 +488,14 @@ func (s State) HandleMouseScroll(up bool, mainX, mainY, mainWidth, mainHeight in
 }
 
 func (s *State) isMouseDoubleClick(target MouseTarget, idx int, now time.Time) bool {
+	return s.isMouseDoubleClickWithThreshold(target, idx, now, connsDoubleClickThreshold)
+}
+
+func (s *State) isMouseDoubleClickWithThreshold(target MouseTarget, idx int, now time.Time, threshold time.Duration) bool {
 	isDoubleClick := target == s.lastMouseTarget &&
 		idx == s.lastMouseIndex &&
 		!s.lastMouseAt.IsZero() &&
-		now.Sub(s.lastMouseAt) <= connsDoubleClickThreshold
+		now.Sub(s.lastMouseAt) <= threshold
 
 	s.lastMouseTarget = target
 	s.lastMouseIndex = idx
@@ -487,6 +633,11 @@ func (s *State) closeConnectionDetail() {
 	s.connDetailFocusPanel = 0
 }
 
+func (s *State) closeTopNModal() {
+	s.topNModalMode = false
+	s.topNModalScroll = 0
+}
+
 func (s *State) setConnViewMode(mode int) {
 	if mode < ConnViewActive || mode > ConnViewHistory {
 		mode = ConnViewActive
@@ -575,6 +726,34 @@ func (s State) selectedConnection() *model.Connection {
 			idx++
 		}
 	}
+	return nil
+}
+
+// findConnectionByName 根据名称（进程/域名/IP）查找第一个匹配的连接
+func (s State) findConnectionByName(name string) *model.Connection {
+	if name == "" {
+		return nil
+	}
+
+	// 1. 查找活跃连接
+	if s.Connections != nil {
+		for i := range s.Connections.Connections {
+			conn := &s.Connections.Connections[i]
+			if conn.Metadata.Process == name || conn.Metadata.Host == name || conn.Metadata.DestinationIP == name {
+				return conn
+			}
+		}
+	}
+
+	// 2. 查找历史连接
+	closed := s.ClosedConnections()
+	for i := range closed {
+		conn := &closed[i]
+		if conn.Metadata.Process == name || conn.Metadata.Host == name || conn.Metadata.DestinationIP == name {
+			return conn
+		}
+	}
+
 	return nil
 }
 

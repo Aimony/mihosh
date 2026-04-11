@@ -34,6 +34,11 @@ type PageState struct {
 	// 网站测速
 	SiteTests        []model.SiteTest // 网站测试数据
 	SelectedSiteTest int              // 选中的网站索引
+	// Top N 排行榜
+	TopNItems       []components.TopNItem
+	TopNModalMode   bool
+	TopNModalItems  []components.TopNItem
+	TopNModalScroll int
 }
 
 // RenderConnectionsPage 渲染连接监控页面
@@ -49,6 +54,9 @@ func RenderConnectionsPage(state PageState) string {
 			state.DetailRightScroll,
 			state.DetailFocusPanel,
 		)
+	}
+	if state.TopNModalMode {
+		return components.RenderTopNModal(state.TopNModalItems, state.Width, state.Height, state.TopNModalScroll)
 	}
 
 	// 样式定义
@@ -113,6 +121,9 @@ func RenderConnectionsPage(state PageState) string {
 		}
 		if len(state.SiteTests) > 0 {
 			usedLines += 8 // 测试区域高度(Title + Space + Card + Space)
+		}
+		if len(state.TopNItems) > 0 {
+			usedLines += len(state.TopNItems) + 2 // 排行榜高度(Title + Lines)
 		}
 	}
 
@@ -182,7 +193,7 @@ func RenderConnectionsPage(state PageState) string {
 	// 帮助提示
 	var helpText string
 	if state.ViewMode == 0 {
-		helpText = dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [h]历史 [s]测速 [S]全测 [r]刷新")
+		helpText = dimStyle.Render("[↑↓]选择 [x]关闭 [X]全部关闭 [/]搜索 [h]历史 [s]测速 [S]全测 [双击图表]排行 [r]刷新")
 	} else {
 		helpText = dimStyle.Render("[↑↓]选择 [Enter]详情 [/]搜索 [h]活跃")
 	}
@@ -199,6 +210,16 @@ func RenderConnectionsPage(state PageState) string {
 			content = append(content, chartsSection)
 			content = append(content, "")
 		}
+
+		// 渲染 Top N 大盘
+		if len(state.TopNItems) > 0 {
+			topNSection := components.RenderTopNSection(state.TopNItems, state.Width)
+			if topNSection != "" {
+				content = append(content, topNSection)
+				content = append(content, "")
+			}
+		}
+
 		// 渲染网站测速区域
 		if len(state.SiteTests) > 0 {
 			siteTestSection := components.RenderSiteTestSection(state.SiteTests, state.SelectedSiteTest, state.Width)
