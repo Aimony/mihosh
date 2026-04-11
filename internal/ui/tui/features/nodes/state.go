@@ -20,12 +20,13 @@ const testFailureCap = 100 // 最多保留最近 100 条测速失败记录
 type ProxySortOrder int
 
 const (
-	SortOrderOriginal ProxySortOrder = iota // 原始顺序
-	SortOrderAZ                             // A-Z 升序
-	SortOrderZA                             // Z-A 降序
+	SortOrderOriginal ProxySortOrder = iota // 默认顺序
+	SortOrderNameAsc                        // A-Z 升序
+	SortOrderDelayAsc                       // 延迟升序
+	SortOrderAvailable                      // 可用性过滤
 )
 
-var sortOrderLabels = []string{"原始顺序", "A-Z 升序", "Z-A 降序"}
+var sortOrderLabels = []string{"默认顺序", "按名称排序", "按延迟排序", "仅可用节点"}
 
 type nodesMouseFocus int
 
@@ -109,13 +110,13 @@ func (s State) sortedTestFailures() []string {
 		return strings.ToLower(entry)
 	}
 	switch s.ProxySortOrder {
-	case SortOrderAZ:
+	case SortOrderNameAsc:
 		sort.Slice(result, func(i, j int) bool {
 			return nodeName(result[i]) < nodeName(result[j])
 		})
-	case SortOrderZA:
+	case SortOrderDelayAsc, SortOrderAvailable:
 		sort.Slice(result, func(i, j int) bool {
-			return nodeName(result[i]) > nodeName(result[j])
+			return nodeName(result[i]) < nodeName(result[j])
 		})
 		// SortOrderOriginal: 保持 TestFailures() 返回的最新在前顺序
 	}
@@ -627,19 +628,49 @@ func (s *State) applySortOrder() {
 			copy(copied, s.OriginalProxies)
 			s.CurrentProxies = copied
 		}
-	case SortOrderAZ:
-		copied := make([]string, len(s.OriginalProxies))
-		copy(copied, s.OriginalProxies)
-		sort.Slice(copied, func(i, j int) bool {
-			return strings.ToLower(copied[i]) < strings.ToLower(copied[j])
+	case SortOrderNameAsc:
+		if len(s.OriginalProxies) > 0 {
+			copied := make([]string, len(s.OriginalProxies))
+			copy(copied, s.OriginalProxies)
+			sort.Slice(copied, func(i, j int) bool {
+				return strings.ToLower(copied[i]) < strings.ToLower(copied[j])
+			})
+			s.CurrentProxies = copied
+		}
+	case SortOrderDelayAsc:
+		if len(s.OriginalProxies) > 0 {
+			copied := make([]string, len(s.OriginalProxies))
+			copy(copied, s.OriginalProxies)
+			sort.Slice(copied, func(i, j int) bool {
+				delayI, delayJ := s.getProxyDelayUnsafe(copied[i]), s.getProxyDelayUnsafe(copied[j])
+				rank := func(d int) int {
+					if d <= 0 {
+						return 9999999 - d
+					}
+					return d
+				}
+				return rank(delayI) < rank(delayJ)
+			})
+			s.CurrentProxies = copied
+		}
+	case SortOrderAvailable:
+		var filtered []string
+		for _, name := range s.OriginalProxies {
+			if s.getProxyDelayUnsafe(name) > 0 {
+				filtered = append(filtered, name)
+			}
+		}
+		sort.Slice(filtered, func(i, j int) bool {
+			return s.getProxyDelayUnsafe(filtered[i]) < s.getProxyDelayUnsafe(filtered[j])
 		})
-		s.CurrentProxies = copied
-	case SortOrderZA:
-		copied := make([]string, len(s.OriginalProxies))
-		copy(copied, s.OriginalProxies)
-		sort.Slice(copied, func(i, j int) bool {
-			return strings.ToLower(copied[i]) > strings.ToLower(copied[j])
-		})
-		s.CurrentProxies = copied
+		s.CurrentProxies = filtered
 	}
+}
+
+// getProxyDelayUnsafe 获取节点的最新延迟值（未测速为0，超时/失败为-1或0）
+func (s *State) getProxyDelayUnsafe(name string) int {
+	if proxy, ok := s.Proxies[name]; ok && len(proxy.History) > 0 {
+		return proxy.History[len(proxy.History)-1].Delay
+	}
+	return 0
 }
