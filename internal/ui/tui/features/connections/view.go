@@ -111,19 +111,19 @@ func RenderConnectionsPage(state PageState) string {
 	// 表头
 	tableHeader := components.RenderTableHeader(headerStyle)
 
-	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Footer-Space)
-	usedLines := 8 // 基础占用行数 (含底部页脚 1 行)
+	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Scroll-Indicators + Footer)
+	usedLines := 10 // 基础占用行数: Header(1)+Space(1)+Stats(1)+TableHeader(1)+Divider(1)+Footer(1)+ScrollTips(2)+Extra(2)
 
 	// 加上图表和测试区域的行数
 	if state.ViewMode == 0 {
 		if state.ChartData != nil {
-			usedLines += 6 // 图表高度(估计) + 间距
+			usedLines += 8 // 图表高度(7) + 间距(1)
 		}
 		if len(state.SiteTests) > 0 {
-			usedLines += 8 // 测试区域高度(Title + Space + Card + Space)
+			usedLines += 8 // 测试区域高度(7) + 间距(1)
 		}
 		if len(state.TopNItems) > 0 {
-			usedLines += len(state.TopNItems) + 2 // 排行榜高度(Title + Lines)
+			usedLines += len(state.TopNItems) + 2 // 排行榜高度(Title+Items) + 间距(1)
 		}
 	}
 
@@ -134,8 +134,16 @@ func RenderConnectionsPage(state PageState) string {
 
 	// 计算列表可显示的行数
 	maxDisplay := state.Height - usedLines
-	if maxDisplay < 5 {
-		maxDisplay = 5
+	if maxDisplay < 3 {
+		maxDisplay = 3 // 至少显示 3 行，如果高度实在太小，可能会挤出底部
+	}
+
+	// 如果 height 特别小，确保不要溢出
+	if usedLines+maxDisplay > state.Height {
+		maxDisplay = state.Height - usedLines
+		if maxDisplay < 1 {
+			maxDisplay = 1
+		}
 	}
 
 	// 连接列表
