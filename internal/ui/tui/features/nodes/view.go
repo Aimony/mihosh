@@ -85,13 +85,11 @@ func RenderNodesPage(state PageState) string {
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		modeSwitch,
-		"",
 		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
 		groupList,
 		"",
 		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("节点列表 [%d/%d]", state.SelectedProxy+1, len(state.CurrentProxies))),
 		proxyList,
-		"",
 		searchLine,
 		failureBadge,
 	)

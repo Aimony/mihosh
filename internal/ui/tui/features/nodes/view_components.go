@@ -38,19 +38,23 @@ type nodesListWindow struct {
 
 // ResolveMouseHit 根据 pageContent 内的 Y 坐标定位命中的策略组/节点行。
 func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
-	// 模式切换菜单位于最顶部，占据 [0, 1, 2] 行
-	// 格式：╭──────────┬──────────┬──────────╮
-	//       │   规则   │   全局   │   直连   │
-	//       ╰──────────┴──────────┴──────────╯
-	if pageY >= 0 && pageY <= 2 {
-		// 模式切换菜单项宽度大约每个包含 padding 是 8字符，加边框
-		// " 规则 " 等于 4 个中文字符宽度(8)，加上前后 padding 1 = 10，实际可以通过 x 坐标简单划分
-		if pageX > 0 && pageX < 30 {
-			index := (pageX - 1) / 10
-			if index >= 0 && index < 3 {
-				return MouseHit{
-					Target: MouseTargetMode,
-					Index:  index,
+	// 模式切换菜单位于最顶部，占据 [0, 1] 行
+	// 格式： 规则 │ 全局 │ 直连
+	//       ──────────────────────
+	if pageY >= 0 && pageY <= 1 {
+		// 样式中有 Padding(0, 0, 0, 1)，所以从 X=1 开始
+		// 每个选项: 1(padding) + 1(space) + 4(label) + 1(space) + 1(padding) = 8
+		// 选项之间有 1 个分隔符 │
+		// 所以 index 0: X[1-8], index 1: X[10-17], index 2: X[19-26]
+		if pageX >= 1 && pageX < 28 {
+			index := (pageX - 1) / 9
+			// 简单校验是否点在分隔符上
+			if (pageX-1)%9 < 8 {
+				if index >= 0 && index < 3 {
+					return MouseHit{
+						Target: MouseTargetMode,
+						Index:  index,
+					}
 				}
 			}
 		}
@@ -58,9 +62,9 @@ func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
 
 	groupMaxLines, proxyMaxLines := CalcNodesListMaxLines(state.Height)
 
-	// Mode switch uses 3 lines, followed by 1 empty line
+	// Mode switch uses 2 lines (no empty line after it)
 	groupListLines := 1
-	groupListStart := 4 + nodesSectionHeaderLines
+	groupListStart := 2 + nodesSectionHeaderLines
 	if len(state.GroupNames) > 0 {
 		groupWindow := resolveListWindow(state.SelectedGroup, state.GroupScrollTop, groupMaxLines, len(state.GroupNames))
 		groupRows := groupWindow.End - groupWindow.ScrollTop
@@ -337,19 +341,19 @@ func RenderModeSwitchComponent(currentMode string) string {
 	activeStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#007BFF")). // Blue background
 		Foreground(lipgloss.Color("#FFFFFF")).
-		Padding(0, 2)
+		Padding(0, 1)
 	inactiveStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#007BFF")). // Blue text
-		Padding(0, 2)
+		Padding(0, 1)
 	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#007BFF"))
 
 	var parts []string
 	for i, m := range modes {
 		text := m.Label
 		if strings.ToLower(currentMode) == m.Value {
-			parts = append(parts, activeStyle.Render(text))
+			parts = append(parts, activeStyle.Render(" "+text+" "))
 		} else {
-			parts = append(parts, inactiveStyle.Render(text))
+			parts = append(parts, inactiveStyle.Render(" "+text+" "))
 		}
 		if i < len(modes)-1 {
 			parts = append(parts, borderStyle.Render("│"))
@@ -359,7 +363,8 @@ func RenderModeSwitchComponent(currentMode string) string {
 	content := lipgloss.JoinHorizontal(lipgloss.Left, parts...)
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder(), false, false, true, false). // Only bottom border
 		BorderForeground(lipgloss.Color("#007BFF")).
+		Padding(0, 0, 0, 1).
 		Render(content)
 }
