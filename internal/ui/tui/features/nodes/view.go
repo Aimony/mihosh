@@ -11,13 +11,14 @@ import (
 )
 
 const (
-	nodesFixedLines     = 8
+	nodesFixedLines     = 12
 	nodesMinHeight      = 10
 	nodesDefaultNameLen = 8
 )
 
 // PageState 节点页面状态（由 Model 传入）
 type PageState struct {
+	Mode              string
 	Groups            map[string]model.Group
 	Proxies           map[string]model.Proxy
 	GroupNames        []string
@@ -58,6 +59,7 @@ func RenderNodesPage(state PageState) string {
 	groupMaxLines, proxyMaxLines := CalcNodesListMaxLines(state.Height)
 	groupList := RenderGroupListComponent(state, groupMaxLines)
 	proxyList := RenderProxyListComponent(state, proxyMaxLines)
+	modeSwitch := RenderModeSwitchComponent(state.Mode)
 
 	sortLabel := ""
 	if len(state.SortOrderLabels) > 0 && state.CurrentSortOrder < len(state.SortOrderLabels) {
@@ -72,7 +74,7 @@ func RenderNodesPage(state PageState) string {
 		searchLine = common.MutedStyle.Render(fmt.Sprintf("搜索: %s  [Esc]清除", state.FilterText))
 	}
 
-	helpText := common.MutedStyle.Render(fmt.Sprintf("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [a]全测 [s]排序:%s [/]搜索 [r]刷新", sortLabel))
+	helpText := common.MutedStyle.Render(fmt.Sprintf("[↑/↓]选择 [←/→]切组 [Enter]切换 [t]测速 [m]模式 [s]排序:%s [/]搜索 [r]刷新", sortLabel))
 
 	var failureBadge string
 	if len(state.TestFailures) > 0 {
@@ -82,6 +84,8 @@ func RenderNodesPage(state PageState) string {
 
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
+		modeSwitch,
+		"",
 		common.PageHeaderStyle.Width(state.Width-4).Render(fmt.Sprintf("策略组 [%d/%d]", state.SelectedGroup+1, len(state.GroupNames))),
 		groupList,
 		"",

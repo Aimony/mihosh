@@ -22,6 +22,10 @@ func (e ErrMsg) Error() string { return e.Err.Error() }
 
 type ConfigSavedMsg struct{}
 
+type ConfigModeMsg struct {
+	Mode string
+}
+
 // ========= Node / Proxy Testing Messages =========
 
 type TestDoneMsg struct {

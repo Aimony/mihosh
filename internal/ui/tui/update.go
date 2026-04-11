@@ -37,6 +37,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		nodes.FetchGroups(m.client),
 		nodes.FetchProxies(m.client),
+		nodes.FetchConfigMode(m.client),
 		startWSStreams(m.wsClient, m.wsMsgChan),
 		listenWSMessages(m.wsCtx, m.wsMsgChan),
 	)
@@ -157,6 +158,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.ProxiesMsg:
 		m.nodesState = m.nodesState.ApplyProxies(msg)
+
+	case messages.ConfigModeMsg:
+		m.nodesState = m.nodesState.ApplyConfigMode(msg.Mode)
 
 	case messages.ConnectionsMsg:
 		m.connsState = m.connsState.ApplyConnections(msg.Resp)
@@ -347,13 +351,13 @@ func (m Model) handleMouseScroll(up bool, x, y int) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNodesMouseLeft(x, y int) (tea.Model, tea.Cmd) {
-	_, pageY, pageWidth, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
+	pageX, pageY, pageWidth, pageHeight, ok := m.resolveMainPageMouseHit(x, y)
 	if !ok {
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.nodesState, cmd = m.nodesState.HandleMouseLeft(pageY, pageWidth, pageHeight, m.client)
+	m.nodesState, cmd = m.nodesState.HandleMouseLeft(pageX, pageY, pageWidth, pageHeight, m.client)
 	return m, cmd
 }
 

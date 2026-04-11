@@ -22,6 +22,7 @@ const (
 	MouseTargetNone MouseTarget = iota
 	MouseTargetGroup
 	MouseTargetProxy
+	MouseTargetMode
 )
 
 // MouseHit 是 nodes 页面鼠标命中结果
@@ -36,11 +37,30 @@ type nodesListWindow struct {
 }
 
 // ResolveMouseHit 根据 pageContent 内的 Y 坐标定位命中的策略组/节点行。
-func ResolveMouseHit(state PageState, pageY int) MouseHit {
+func ResolveMouseHit(state PageState, pageX, pageY int) MouseHit {
+	// 模式切换菜单位于最顶部，占据 [0, 1, 2] 行
+	// 格式：╭──────────┬──────────┬──────────╮
+	//       │   规则   │   全局   │   直连   │
+	//       ╰──────────┴──────────┴──────────╯
+	if pageY >= 0 && pageY <= 2 {
+		// 模式切换菜单项宽度大约每个包含 padding 是 8字符，加边框
+		// " 规则 " 等于 4 个中文字符宽度(8)，加上前后 padding 1 = 10，实际可以通过 x 坐标简单划分
+		if pageX > 0 && pageX < 30 {
+			index := (pageX - 1) / 10
+			if index >= 0 && index < 3 {
+				return MouseHit{
+					Target: MouseTargetMode,
+					Index:  index,
+				}
+			}
+		}
+	}
+
 	groupMaxLines, proxyMaxLines := CalcNodesListMaxLines(state.Height)
 
+	// Mode switch uses 3 lines, followed by 1 empty line
 	groupListLines := 1
-	groupListStart := nodesSectionHeaderLines
+	groupListStart := 4 + nodesSectionHeaderLines
 	if len(state.GroupNames) > 0 {
 		groupWindow := resolveListWindow(state.SelectedGroup, state.GroupScrollTop, groupMaxLines, len(state.GroupNames))
 		groupRows := groupWindow.End - groupWindow.ScrollTop
@@ -56,7 +76,7 @@ func ResolveMouseHit(state PageState, pageY int) MouseHit {
 		}
 	}
 
-	proxyHeaderStart := nodesSectionHeaderLines + groupListLines + 1
+	proxyHeaderStart := groupListStart + groupListLines + 1
 	proxyListStart := proxyHeaderStart + nodesSectionHeaderLines
 	if len(state.CurrentProxies) > 0 {
 		proxyWindow := resolveListWindow(state.SelectedProxy, state.ProxyScrollTop, proxyMaxLines, len(state.CurrentProxies))
@@ -301,4 +321,45 @@ func RenderProxyListComponent(state PageState, proxyMaxLines int) string {
 	}
 
 	return common.TableHeaderStyle.Render(header) + "\n" + strings.Join(lines, "\n")
+}
+
+// RenderModeSwitchComponent 渲染模式切换按钮
+func RenderModeSwitchComponent(currentMode string) string {
+	modes := []struct {
+		Label string
+		Value string
+	}{
+		{"规则", "rule"},
+		{"全局", "global"},
+		{"直连", "direct"},
+	}
+
+	activeStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#007BFF")). // Blue background
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Padding(0, 2)
+	inactiveStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#007BFF")). // Blue text
+		Padding(0, 2)
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#007BFF"))
+
+	var parts []string
+	for i, m := range modes {
+		text := m.Label
+		if strings.ToLower(currentMode) == m.Value {
+			parts = append(parts, activeStyle.Render(text))
+		} else {
+			parts = append(parts, inactiveStyle.Render(text))
+		}
+		if i < len(modes)-1 {
+			parts = append(parts, borderStyle.Render("│"))
+		}
+	}
+
+	content := lipgloss.JoinHorizontal(lipgloss.Left, parts...)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#007BFF")).
+		Render(content)
 }

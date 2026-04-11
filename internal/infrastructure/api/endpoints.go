@@ -180,3 +180,24 @@ func (c *Client) ReloadConfig(configPath string) error {
 	_, err := c.DoRequest("PUT", "/configs?force=true", payload)
 	return err
 }
+
+// GetConfigs 获取代理配置
+func (c *Client) GetConfigs() (*model.ConfigsResponse, error) {
+	data, err := c.DoRequest("GET", "/configs", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp model.ConfigsResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// UpdateConfig 更新代理配置
+func (c *Client) UpdateConfig(reqBody model.UpdateConfigRequest) error {
+	_, err := c.DoRequest("PATCH", "/configs", reqBody)
+	return err
+}

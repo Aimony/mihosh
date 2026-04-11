@@ -1,6 +1,7 @@
 package nodes
 
 import (
+	"github.com/aimony/mihosh/internal/domain/model"
 	"github.com/aimony/mihosh/internal/infrastructure/api"
 	"github.com/aimony/mihosh/internal/ui/tui/messages"
 	"github.com/aimony/mihosh/internal/app/service" // Need for testAllProxies
@@ -71,4 +72,24 @@ func LaunchBatchTests(client *api.Client, testURL string, timeout int, pending [
 		cmds = append(cmds, TestProxy(client, name, testURL, timeout))
 	}
 	return tea.Batch(cmds...)
+}
+
+func FetchConfigMode(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		configs, err := client.GetConfigs()
+		if err != nil {
+			return messages.ErrMsg{Err: err}
+		}
+		return messages.ConfigModeMsg{Mode: configs.Mode}
+	}
+}
+
+func UpdateConfigMode(client *api.Client, mode string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateConfig(model.UpdateConfigRequest{Mode: mode})
+		if err != nil {
+			return messages.ErrMsg{Err: err}
+		}
+		return messages.ConfigModeMsg{Mode: mode}
+	}
 }

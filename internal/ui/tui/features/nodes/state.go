@@ -38,6 +38,7 @@ const (
 
 // State 节点页面完整状态
 type State struct {
+	Mode           string // 运行模式 "Rule", "Global", "Direct", in mihomo API lowercase.
 	Groups         map[string]model.Group
 	Proxies        map[string]model.Proxy
 	GroupNames     []string
@@ -144,6 +145,7 @@ func (s State) displayProxies() []string {
 // ToPageState 转换为渲染层所需的 PageState
 func (s State) ToPageState(width, height int) PageState {
 	return PageState{
+		Mode:              s.Mode,
 		Groups:            s.Groups,
 		Proxies:           s.Proxies,
 		GroupNames:        s.GroupNames,
@@ -275,6 +277,21 @@ func (s State) Update(msg tea.KeyMsg, client *api.Client, proxySvc *service.Prox
 			s.FailureScrollTop = 0
 		}
 
+	case msg.String() == "m":
+		modes := []string{"rule", "global", "direct"}
+		currentIdx := -1
+		for i, v := range modes {
+			if strings.ToLower(s.Mode) == v {
+				currentIdx = i
+				break
+			}
+		}
+		if currentIdx == -1 {
+			currentIdx = 0
+		}
+		nextMode := modes[(currentIdx+1)%len(modes)]
+		return s, UpdateConfigMode(client, nextMode)
+
 	case msg.String() == "s":
 		s.ProxySortOrder = (s.ProxySortOrder + 1) % ProxySortOrder(len(sortOrderLabels))
 		s.applySortOrder()
@@ -352,12 +369,12 @@ func (s *State) updateFilteredProxies() {
 }
 
 // HandleMouseLeft 处理 nodes 页面左键单击/双击
-func (s State) HandleMouseLeft(pageY, pageWidth, pageHeight int, client *api.Client) (State, tea.Cmd) {
+func (s State) HandleMouseLeft(pageX, pageY, pageWidth, pageHeight int, client *api.Client) (State, tea.Cmd) {
 	if s.ShowFailureDetail {
 		return s, nil
 	}
 
-	hit := ResolveMouseHit(s.ToPageState(pageWidth, pageHeight), pageY)
+	hit := ResolveMouseHit(s.ToPageState(pageWidth, pageHeight), pageX, pageY)
 	now := time.Now()
 
 	switch hit.Target {
@@ -390,9 +407,23 @@ func (s State) HandleMouseLeft(pageY, pageWidth, pageHeight int, client *api.Cli
 		groupName := s.GroupNames[s.SelectedGroup]
 		proxyName := display[s.SelectedProxy]
 		return s, SelectProxy(client, groupName, proxyName)
+
+	case MouseTargetMode:
+		modes := []string{"rule", "global", "direct"}
+		if hit.Index >= 0 && hit.Index < len(modes) {
+			mode := modes[hit.Index]
+			return s, UpdateConfigMode(client, mode)
+		}
+		return s, nil
 	}
 
 	return s, nil
+}
+
+// ApplyConfigMode 应用模式数据
+func (s State) ApplyConfigMode(mode string) State {
+	s.Mode = mode
+	return s
 }
 
 func (s *State) applyGroupSelection(groupIdx int) {
