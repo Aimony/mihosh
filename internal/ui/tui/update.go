@@ -389,13 +389,13 @@ func (m Model) handleSettingsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleLogsMouseLeft(x, y int) (tea.Model, tea.Cmd) {
-	_, pageY, _, _, ok := m.resolveMainPageMouseHit(x, y)
+	pageX, pageY, pageWidth, _, ok := m.resolveMainPageMouseHit(x, y)
 	if !ok {
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.logsState, cmd = m.logsState.HandleMouseLeft(pageY, m.ipResolver)
+	m.logsState, cmd = m.logsState.HandleMouseLeft(pageY, pageX, pageWidth, m.ipResolver)
 	return m, cmd
 }
 

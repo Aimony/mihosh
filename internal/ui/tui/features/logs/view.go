@@ -138,6 +138,52 @@ func renderLevelBar(selectedLevel int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
 }
 
+// LevelBarPositions 返回每个级别标签的起始位置（用于鼠标点击检测）
+func LevelBarPositions(pageWidth int) []int {
+	positions := make([]int, len(logLevels))
+	currentPos := 0
+
+	// 使用实际渲染宽度计算（考虑 lipgloss 样式）
+	activeStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(common.CWhite).
+		Background(common.CHighlight).
+		Padding(0, 1)
+
+	for i, level := range logLevels {
+		positions[i] = currentPos
+		tag := activeStyle.Render("● " + level)
+		currentPos += lipgloss.Width(tag)
+		// 级别之间有 1 个空格分隔
+		if i < len(logLevels)-1 {
+			currentPos++
+		}
+	}
+
+	return positions
+}
+
+// ClickedLevel 根据点击的 X 坐标返回对应的级别索引，未点击级别栏返回 -1
+func ClickedLevel(pageX int, pageWidth int, selectedLevel int) int {
+	positions := LevelBarPositions(pageWidth)
+
+	// 计算每个标签的结束位置
+	for i := 0; i < len(positions); i++ {
+		var endPos int
+		if i < len(positions)-1 {
+			endPos = positions[i+1] - 1 // 下一个标签开始位置减 1（减去间隔空格）
+		} else {
+			endPos = pageWidth
+		}
+
+		if pageX >= positions[i] && pageX < endPos {
+			return i
+		}
+	}
+
+	return -1
+}
+
 // renderLogSearchBox 渲染搜索框
 func renderLogSearchBox(filterText string, filterMode bool) string {
 	if filterMode {

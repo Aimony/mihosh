@@ -260,8 +260,8 @@ func (s State) ApplyIPResolved(ip string, resolved *model.ResolvedIP) State {
 	return s
 }
 
-// HandleMouseLeft 处理日志页面鼠标左键（含双击检测）
-func (s State) HandleMouseLeft(pageY int, resolver *service.IPResolver) (State, tea.Cmd) {
+// HandleMouseLeft 处理日志页面鼠标左键（含双击检测和级别栏点击）
+func (s State) HandleMouseLeft(pageY int, pageX int, pageWidth int, resolver *service.IPResolver) (State, tea.Cmd) {
 	if s.detailMode {
 		// 详情模式下点击关闭弹窗
 		s.detailMode = false
@@ -270,6 +270,18 @@ func (s State) HandleMouseLeft(pageY int, resolver *service.IPResolver) (State, 
 		s.detailResolved = nil
 		s.detailSourcePrivate = false
 		s.detailScroll = 0
+		return s, nil
+	}
+
+	// 点击级别栏（pageY == 0）切换日志级别
+	if pageY == 0 {
+		clickedLevel := ClickedLevel(pageX, pageWidth, s.logLevel)
+		if clickedLevel >= 0 && clickedLevel != s.logLevel {
+			s.logLevel = clickedLevel
+			s.updateFilteredLogs()
+			s.selectedLog = 0
+			s.logScrollTop = 0
+		}
 		return s, nil
 	}
 
@@ -296,7 +308,8 @@ func (s State) HandleMouseLeft(pageY int, resolver *service.IPResolver) (State, 
 	}
 
 	return s, nil
-}
+}
+
 
 // HandleMouseScroll 鼠标滚轮处理
 func (s State) HandleMouseScroll(up bool) State {
