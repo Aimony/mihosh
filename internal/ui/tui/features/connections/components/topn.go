@@ -31,11 +31,19 @@ func RenderTopNSection(items []TopNItem, width int) string {
 
 	maxBytes := items[0].TotalBytes // 第一项是最大的
 
-	// 预留名字宽度（最长20字符）
+	// 根据可用宽度动态调整列宽
+	// 窄屏时缩短名称列，确保进度条有空间
 	nameWidth := 20
-	barsWidth := width - nameWidth - 15 - 4 // 15是数值留宽, 4 是边距
-	if barsWidth < 10 {
-		barsWidth = 10
+	if width < 60 {
+		nameWidth = 10
+	} else if width < 80 {
+		nameWidth = 15
+	}
+
+	// 15是数值留宽, 4 是边距（│ + 前后空格）
+	barsWidth := width - nameWidth - 15 - 4
+	if barsWidth < 5 {
+		barsWidth = 5
 	}
 
 	for _, item := range items {

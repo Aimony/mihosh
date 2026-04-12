@@ -109,21 +109,32 @@ func RenderConnectionsPage(state PageState) string {
 	}
 
 	// 表头
-	tableHeader := components.RenderTableHeader(headerStyle)
+	tableHeader := components.RenderTableHeader(headerStyle, state.Width)
 
-	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Scroll-Indicators + Footer)
-	usedLines := 10 // 基础占用行数: Header(1)+Space(1)+Stats(1)+TableHeader(1)+Divider(1)+Footer(1)+ScrollTips(2)+Extra(2)
+	// 计算使用的行数 (Header + Stats + Spacers + TableHeader + Divider + Footer)
+	usedLines := connectionsBaseUsedLines
 
 	// 加上图表和测试区域的行数
 	if state.ViewMode == 0 {
 		if state.ChartData != nil {
-			usedLines += 8 // 图表高度(7) + 间距(1)
+			if state.Width < 90 {
+				usedLines += 14 // 窄屏堆叠：3个图表×(3行+1间距)+2间距 ≈ 14
+			} else {
+				usedLines += 8 // 宽屏并排：7行+1间距
+			}
 		}
 		if len(state.SiteTests) > 0 {
-			usedLines += 8 // 测试区域高度(7) + 间距(1)
+			layoutCols := 4
+			if state.Width < 60 {
+				layoutCols = 2
+			} else if state.Width < 90 {
+				layoutCols = 3
+			}
+			cardRows := (len(state.SiteTests) + layoutCols - 1) / layoutCols
+			usedLines += 2 + cardRows*5 + 1 // 标题+间距+卡片行+间距
 		}
 		if len(state.TopNItems) > 0 {
-			usedLines += len(state.TopNItems) + 2 // 排行榜高度(Title+Items) + 间距(1)
+			usedLines += len(state.TopNItems) + 2
 		}
 	}
 
@@ -185,7 +196,7 @@ func RenderConnectionsPage(state PageState) string {
 				prefix = common.SymbolSelectActive
 			}
 
-			row := components.RenderConnectionRow(conn, rowStyle, prefix)
+			row := components.RenderConnectionRow(conn, rowStyle, prefix, state.Width)
 			rows = append(rows, row)
 		}
 
@@ -241,7 +252,7 @@ func RenderConnectionsPage(state PageState) string {
 		content = append(content, filterLine)
 	}
 	content = append(content, tableHeader)
-	content = append(content, common.TableBorderStyle.Render(strings.Repeat("─", min(state.Width-2, 100))))
+	content = append(content, common.TableBorderStyle.Render(strings.Repeat("─", max(state.Width-2, 1))))
 	content = append(content, strings.Join(rows, "\n"))
 
 	// 统一底部的提示信息，固定到底部
@@ -282,8 +293,8 @@ func containsAnyLower(slice []string, sub string) bool {
 	return false
 }
 
-func min(a, b int) int {
-	if a < b {
+func max(a, b int) int {
+	if a > b {
 		return a
 	}
 	return b

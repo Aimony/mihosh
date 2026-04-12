@@ -22,8 +22,15 @@ func RenderSiteTestSection(siteTests []model.SiteTest, selectedIdx int, width in
 	testAllBtn := dimStyle.Render("[S]测试全部")
 	titleLine := title + "  " + testAllBtn
 
-	// 计算每个卡片宽度（横向排列4个）
-	cardWidth := (width - 10) / 4
+	// 根据宽度动态计算每行卡片数和卡片宽度
+	layoutCols := 4
+	if width < 60 {
+		layoutCols = 2
+	} else if width < 90 {
+		layoutCols = 3
+	}
+
+	cardWidth := (width - 10) / layoutCols
 	if cardWidth < 12 {
 		cardWidth = 12
 	}
@@ -31,17 +38,24 @@ func RenderSiteTestSection(siteTests []model.SiteTest, selectedIdx int, width in
 		cardWidth = 20
 	}
 
-	// 渲染网站卡片
-	var cards []string
+	// 渲染网站卡片，按行分组
+	var rowGroups [][]string
 	for i, site := range siteTests {
 		card := RenderSiteCard(site, i == selectedIdx, cardWidth)
-		cards = append(cards, card)
+		rowIdx := i / layoutCols
+		if rowIdx >= len(rowGroups) {
+			rowGroups = append(rowGroups, []string{})
+		}
+		rowGroups[rowIdx] = append(rowGroups[rowIdx], card)
 	}
 
-	// 横向拼接卡片
-	cardsRow := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+	var cardRows []string
+	for _, group := range rowGroups {
+		cardRows = append(cardRows, lipgloss.JoinHorizontal(lipgloss.Top, group...))
+	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, titleLine, "", cardsRow)
+	cardsContent := lipgloss.JoinVertical(lipgloss.Left, cardRows...)
+	return lipgloss.JoinVertical(lipgloss.Left, titleLine, "", cardsContent)
 }
 
 // RenderSiteCard 渲染单个网站测速卡片

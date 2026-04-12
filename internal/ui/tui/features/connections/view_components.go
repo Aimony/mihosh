@@ -7,17 +7,16 @@ import (
 )
 
 const (
-	connectionsBaseUsedLines     = 8
-	connectionsMinDisplayRows    = 5
-	connectionsSiteCardsTopLine  = 2
-	connectionsSiteCardHeight    = 5
-	connectionsSiteCardMinWidth  = 12
-	connectionsSiteCardMaxWidth  = 20
-	connectionsSiteLayoutColumns = 4
-	connectionsSiteCardOuterPad  = 3
-	connectionsHeaderTitle       = "连接监控"
-	connectionsHeaderGapWidth    = 2
-	connectionsTabsGapWidth      = 2
+	connectionsBaseUsedLines    = 8
+	connectionsMinDisplayRows   = 5
+	connectionsSiteCardsTopLine = 2
+	connectionsSiteCardHeight   = 5
+	connectionsSiteCardMinWidth = 12
+	connectionsSiteCardMaxWidth = 20
+	connectionsSiteCardOuterPad = 3
+	connectionsHeaderTitle      = "连接监控"
+	connectionsHeaderGapWidth   = 2
+	connectionsTabsGapWidth     = 2
 )
 
 // MouseTarget 表示 connections 页面鼠标命中的组件
@@ -200,7 +199,13 @@ func resolveSiteTestMouseHit(state PageState, pageX int, siteSectionY int) int {
 }
 
 func calcSiteCardOuterWidth(pageWidth int) int {
-	cardWidth := (pageWidth - 10) / connectionsSiteLayoutColumns
+	layoutCols := 4
+	if pageWidth < 60 {
+		layoutCols = 2
+	} else if pageWidth < 90 {
+		layoutCols = 3
+	}
+	cardWidth := (pageWidth - 10) / layoutCols
 	if cardWidth < connectionsSiteCardMinWidth {
 		cardWidth = connectionsSiteCardMinWidth
 	}
@@ -255,13 +260,24 @@ func calcConnectionsMaxDisplay(state PageState) int {
 	usedLines := connectionsBaseUsedLines
 	if state.ViewMode == 0 {
 		if state.ChartData != nil {
-			usedLines += 6
+			if state.Width < 90 {
+				usedLines += 14 // 窄屏堆叠布局
+			} else {
+				usedLines += 8 // 宽屏并排布局
+			}
 		}
 		if len(state.TopNItems) > 0 {
 			usedLines += len(state.TopNItems) + 2
 		}
 		if len(state.SiteTests) > 0 {
-			usedLines += 8
+			layoutCols := 4
+			if state.Width < 60 {
+				layoutCols = 2
+			} else if state.Width < 90 {
+				layoutCols = 3
+			}
+			cardRows := (len(state.SiteTests) + layoutCols - 1) / layoutCols
+			usedLines += 2 + cardRows*5 + 1
 		}
 	}
 	if state.FilterMode || state.FilterText != "" {
